@@ -17,7 +17,7 @@ const wrapper: IHelloWorldModule = createWrapper<IHelloWorldFunctions>(() => <Pr
   }
 });
 
-const wrapper_asm: IHelloWorldModule = createWrapper<IHelloWorldFunctions>(() => <Promise<IEMScriptModule>><unknown>import('./helloworld_asm'), {
+const wrapperASM: IHelloWorldModule = createWrapper<IHelloWorldFunctions>(() => <Promise<IEMScriptModule>><unknown>import('./helloworld_asm'), {
   functions: {
     add_values: {
       arguments: ['number', 'number'],
@@ -44,7 +44,7 @@ async function main() {
   console.log('wasm');
   await run(wrapper);
   console.log('asm');
-  await run(wrapper_asm);
+  await run(wrapperASM);
 }
 
 main();

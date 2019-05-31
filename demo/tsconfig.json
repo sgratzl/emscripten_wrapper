@@ -5,6 +5,7 @@
     "outDir": ".",
     "composite": false,
     "declaration": false,
+    "declarationMap": false,
     "rootDir": "."
   },
   "include": [
