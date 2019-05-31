@@ -1,8 +1,9 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "module": "esnext",
     "target": "es6",
-    "outDir": "build/src"
+    "outDir": "build"
   },
   "typedocOptions": {
     "name": "EMScripten Wrapper",

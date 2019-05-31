@@ -1,51 +1,52 @@
 
-type EMScriptFS = typeof FS;
 import 'emscripten';
 
+export type EMScriptFS = typeof FS;
+
 export interface IExitStatus extends Error {
-    name: string;
-    message: string;
-    status: number;
+  name: string;
+  message: string;
+  status: number;
 }
 
 export interface IModuleOptions {
-    arguments: string[];
+  arguments: string[];
 
-    print(str: string): void;
-    printErr(str: string): void;
+  print(str: string): void;
+  printErr(str: string): void;
 
-    noInitialRun: boolean;
-    noExitRuntime: boolean;
+  noInitialRun: boolean;
+  noExitRuntime: boolean;
 
-    getPreloadedPackage(remotePackageName: string, remotePackageSize: number): ArrayBuffer | null;
-    locateFile(url: string, prefix?: string): string;
+  getPreloadedPackage(remotePackageName: string, remotePackageSize: number): ArrayBuffer | null;
+  locateFile(url: string, prefix?: string): string;
 
-    stdin(): string | null;
-    stdout(chunk: string): void;
-    stderr(chunk: string): void;
+  stdin(): string | null;
+  stdout(chunk: string): void;
+  stderr(chunk: string): void;
 
-    onAbort(what?: string): void;
-    quit(code: number, status: IExitStatus): void;
-    onExit(code: number): void;
+  onAbort(what?: string): void;
+  quit(code: number, status: IExitStatus): void;
+  onExit(code: number): void;
 
-    onRuntimeInitialized(): void;
+  onRuntimeInitialized(): void;
 
-    setStatus(status: string): void;
+  setStatus(status: string): void;
 }
 
 export interface IModule {
-    ccall(ident: string, returnType: 'string' | 'number' | null, argTypes: ('string' | 'number' | 'array')[], args: any[]): any;
-    cwrap(ident: string, returnType: 'string' | 'number' | null, argTypes: ('string' | 'number' | 'array')[]): Function;
-    abort(what?: string): void;
-    callMain(args: string[]): void;
-    stackSave(): number;
-    stackRestore(saveNumber: number): void;
+  ccall(ident: string, returnType: 'string' | 'number' | null, argTypes: ('string' | 'number' | 'array')[], args: any[]): any;
+  cwrap(ident: string, returnType: 'string' | 'number' | null, argTypes: ('string' | 'number' | 'array')[]): Function;
+  abort(what?: string): void;
+  callMain(args: string[]): void;
+  stackSave(): number;
+  stackRestore(saveNumber: number): void;
 
-    then(callback: (module: IModule) => void): this;
+  then(callback: (module: IModule) => void): this;
 
-    FS: EMScriptFS;
+  FS: EMScriptFS;
 }
 
 export interface IEMScriptModule {
-    (module: Partial<IModuleOptions>): IModule;
+  (module: Partial<IModuleOptions>): IModule;
 }
