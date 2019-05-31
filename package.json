@@ -1,6 +1,6 @@
 {
   "name": "emscripten_wrapper",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "simplified wrapper around EMScripten Modules",
   "repository": {
     "type": "git",
