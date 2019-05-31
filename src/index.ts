@@ -16,7 +16,7 @@ export interface IEMWOptions {
 }
 
 
-type PromiseFunction<T> =
+export type PromiseFunction<T> =
   T extends () => infer R ? () => Promise<R> :
   T extends (arg1: infer A1) => infer R ? (arg1: A1) => Promise<R> :
   T extends (arg1: infer A1, arg2: infer A2) => infer R ? (arg1: A1, arg2: A2) => Promise<R> :
@@ -25,19 +25,19 @@ type PromiseFunction<T> =
   T extends (...args: (infer A)[]) => infer R ? (...args: A[]) => Promise<R> :
   never;
 
-type Promisified<T> = {
+export type Promisified<T> = {
   [P in keyof T]: PromiseFunction<T[P]>;
 }
 
-interface IEMWMainPromise {
+export interface IEMWMainPromise {
   main(args: string[]): Promise<number>;
 }
 
-interface IEMWMain {
+export interface IEMWMain {
   main(args: string[]): number;
 }
 
-interface IEMWWrapper {
+export interface IEMWWrapper {
   kill(signal?: string): void;
 
   stdin: IEMWInStream;
@@ -77,12 +77,12 @@ interface IEMWWrapper {
   removeAllListeners(event?: 'quit'): this;
 }
 
-interface ISyncEMWWrapper<T> extends IEMWWrapper {
+export interface ISyncEMWWrapper<T> extends IEMWWrapper {
   readonly FileSystem: EMScriptFS;
   readonly fn: T;
 }
 
-interface IAsyncEMWWrapper<T> extends IEMWWrapper {
+export interface IAsyncEMWWrapper<T> extends IEMWWrapper {
   readonly FileSystem: Promise<EMScriptFS>;
   readonly fn: Promisified<T>;
 
@@ -125,6 +125,10 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWWrapper<T>, IE
       return this.module;
     }
     this.module = this._loader().then((mod) => {
+      // export fix
+      if ((<any>mod).default === 'function') {
+        mod = (<any>mod).default;
+      }
       return mod({
         print: this.stdout.push.bind(this.stdout),
         printErr: this.stderr.push.bind(this.stderr),
@@ -226,22 +230,8 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWWrapper<T>, IE
 
 
 
-export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options: Partial<IEMWOptions> & {main: false}): IAsyncEMWWrapper<T>;
-export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options: Partial<IEMWOptions>): IEMWMainPromise & IAsyncEMWWrapper<T>;
-export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options: Partial<IEMWOptions> & {main?: false}): IEMWMainPromise & IAsyncEMWWrapper<T & IEMWMain> {
+export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options?: Partial<IEMWOptions> & {main: false}): IAsyncEMWWrapper<T>;
+export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options?: Partial<IEMWOptions>): IEMWMainPromise & IAsyncEMWWrapper<T & IEMWMain>;
+export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options?: Partial<IEMWOptions> & {main?: false}): IEMWMainPromise & IAsyncEMWWrapper<T & IEMWMain> {
   return new EMScriptWrapper<T & IEMWMain>(loader, options);
 }
-
-
-// const wrapper = createWrapper<{
-//     add_values(a: number, b: number): number;
-// }>(() => <Promise<IEMScriptModule>><unknown>import('./helloworld'), {
-//     functions: {
-//         add_values: {arguments: ['number', 'string'], returnType: 'number'}
-//     },
-//     main: false,
-// //    main: true
-// });
-
-
-
