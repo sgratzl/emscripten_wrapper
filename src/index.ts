@@ -123,7 +123,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
 
   readonly fn: Promisified<T>;
 
-  constructor(private readonly _loader: () => Promise<IEMScriptModule>, private readonly options: Partial<IEMWOptions> & {main?: false} = {}) {
+  constructor(private readonly _loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, private readonly options: Partial<IEMWOptions> & {main?: false} = {}) {
     super();
     this.fn = buildAsyncFunctions<T>(this, options.functions);
   }
@@ -135,11 +135,10 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     let readyResolve: (() => void) | null = null;
     this.readySemaphore = new Promise((resolve) => readyResolve = resolve);
 
-    this.module = this._loader().then((mod) => {
+    this.module = this._loader().then((loaded) => {
       // export fix
-      if (typeof (<any>mod).default === 'function') {
-        mod = (<any>mod).default;
-      }
+      const mod = (typeof (<{default: IEMScriptModule}>loaded).default === 'function') ? (<{default: IEMScriptModule}>loaded).default : <IEMScriptModule>loaded;
+
       const m = mod({
         print: this.stdout.push.bind(this.stdout),
         printErr: this.stderr.push.bind(this.stderr),
@@ -251,8 +250,8 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
 
 
 
-export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options?: Partial<IEMWOptions> & {main: false}): IAsyncEMWWrapper<T>;
-export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options?: Partial<IEMWOptions>): IAsyncEMWMainWrapper<T>;
-export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options?: Partial<IEMWOptions> & {main?: false}): IAsyncEMWMainWrapper<T> {
+export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, options?: Partial<IEMWOptions> & {main: false}): IAsyncEMWWrapper<T>;
+export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, options?: Partial<IEMWOptions>): IAsyncEMWMainWrapper<T>;
+export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, options?: Partial<IEMWOptions> & {main?: false}): IAsyncEMWMainWrapper<T> {
   return new EMScriptWrapper<T>(loader, options);
 }

@@ -1,4 +1,4 @@
-import createWrapper, {IEMScriptModule, IAsyncEMWMainWrapper} from '../';
+import createWrapper, {IAsyncEMWMainWrapper} from '../';
 
 export interface IHelloWorldFunctions {
   add_values(a: number, b: number): number;
@@ -8,7 +8,7 @@ export interface IHelloWorldModule extends IAsyncEMWMainWrapper<IHelloWorldFunct
 
 }
 
-const wrapper: IHelloWorldModule = createWrapper<IHelloWorldFunctions>(() => <Promise<IEMScriptModule>><unknown>import('./helloworld'), {
+const wrapper: IHelloWorldModule = createWrapper<IHelloWorldFunctions>(() => import('./helloworld'), {
   functions: {
     add_values: {
       arguments: ['number', 'number'],
@@ -17,7 +17,7 @@ const wrapper: IHelloWorldModule = createWrapper<IHelloWorldFunctions>(() => <Pr
   }
 });
 
-const wrapperASM: IHelloWorldModule = createWrapper<IHelloWorldFunctions>(() => <Promise<IEMScriptModule>><unknown>import('./helloworld_asm'), {
+const wrapperASM: IHelloWorldModule = createWrapper<IHelloWorldFunctions>(() => import('./helloworld_asm'), {
   functions: {
     add_values: {
       arguments: ['number', 'number'],
