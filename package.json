@@ -35,7 +35,7 @@
     "lint": "tslint -p tsconfig.json -c tslint.json",
     "docs": "npm run clean:compile && typedoc --tsconfig tsconfig.dev.json --out ./build/docs/ src tsd.d.ts",
     "pretest": "npm run clean && npm run compile",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "posttest": "npm run lint",
     "prebuild": "npm run clean && npm run test",
