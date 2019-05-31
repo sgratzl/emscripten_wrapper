@@ -43,7 +43,7 @@
     "build:prod": "npm run compile & npm run compile:dev",
     "build": "npm run build:prod",
     "dev": "npm run clean && npm run compile:dev && npm run build:dev",
-    "watch": "tsc -b -w ./tsconfig.dev.json",
+    "watch": "tsc -b -w ./tsconfig.json",
     "predist": "npm run build",
     "dist": "echo 'dummy'",
     "prepare": "echo 'dummy prepare since prepack has no dev dependencies'",

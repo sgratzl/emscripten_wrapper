@@ -17,7 +17,7 @@
       "es2017.object"
     ],
     "declaration": true,
-    "declarationMap": true, 
+    "declarationMap": true,
     "removeComments": false,
     "noImplicitAny": true,
     "forceConsistentCasingInFileNames": true,

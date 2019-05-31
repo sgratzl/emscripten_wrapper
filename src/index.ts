@@ -30,11 +30,11 @@ export type Promisified<T> = {
 }
 
 export interface IEMWMainPromise {
-  main(args: string[]): Promise<number>;
+  main(args?: string[]): Promise<number>;
 }
 
 export interface IEMWMain {
-  main(args: string[]): number;
+  main(args?: string[]): number;
 }
 
 export interface IEMWWrapper {
@@ -89,6 +89,13 @@ export interface IAsyncEMWWrapper<T> extends IEMWWrapper {
   sync(): Promise<ISyncEMWWrapper<T>>;
 }
 
+export interface IAsyncEMWMainWrapper<T> extends IEMWWrapper, IEMWMainPromise {
+  readonly FileSystem: Promise<EMScriptFS>;
+  readonly fn: Promisified<T>;
+
+  sync(): Promise<ISyncEMWWrapper<T> & IEMWMain>;
+}
+
 function buildAsyncFunctions<T>(that: {sync(): Promise<ISyncEMWWrapper<T>>}, functions: {[functioName: string]: IFunctionDeclaration} = {}): Promisified<T> {
   const obj: any = {};
   Object.keys(functions).forEach((k) => {
@@ -105,12 +112,13 @@ function buildSyncFunctions<T>(mod: IModule, functions: {[functioName: string]: 
   return obj;
 }
 
-class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWWrapper<T>, IEMWMainPromise {
+class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T> {
   readonly stdout = new SimpleOutStream();
   readonly stderr = new SimpleOutStream();
   readonly stdin = new SimpleInStream();
 
-  private module: Promise<IModule> | null = null;
+  private module: Promise<{mod: IModule}> | null = null;
+  private readySemaphore: Promise<void> | null = null;
   private _sync: Promise<ISyncEMWWrapper<T> & IEMWMain> | null = null;
 
   readonly fn: Promisified<T>;
@@ -124,24 +132,35 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWWrapper<T>, IE
     if (this.module) {
       return this.module;
     }
+    let readyResolve: (() => void) | null = null;
+    this.readySemaphore = new Promise((resolve) => readyResolve = resolve);
+
     this.module = this._loader().then((mod) => {
       // export fix
-      if ((<any>mod).default === 'function') {
+      if (typeof (<any>mod).default === 'function') {
         mod = (<any>mod).default;
       }
-      return mod({
+      const m = mod({
         print: this.stdout.push.bind(this.stdout),
         printErr: this.stderr.push.bind(this.stderr),
         stdin: this.stdin.read.bind(this.stdin),
         noInitialRun: true,
         noExitRuntime: true,
-        quit: (status) => this.emit('quit', status),
+        onRuntimeInitialized: () => {
+          setTimeout(() => readyResolve!(), 1);
+        },
+        quit: (status) => {
+          this.emit('quit', status);
+        }
       });
+      // wrap module since it has a 'then' by itself and then the promise thinks it is another promise to wait for
+      // however the then doesn't work properly
+      return {mod: m};
     });
     return this.module;
   }
 
-  main(args: string[]) {
+  main(args?: string[]) {
     return this.sync().then((mod) => mod.main(args));
   }
 
@@ -150,19 +169,19 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWWrapper<T>, IE
   }
 
   get FileSystem() {
-    return this._load().then((mod) => mod.FS);
+    return this._load().then((mod) => mod.mod.FS);
   }
 
-  private _callMain(mod: IModule, args: string[]) {
+  private _callMain(mod: IModule, args?: string[]) {
     let statusCode = 0;
     let statusError: Error | null = null;
     const quitListener = (status: number, error: Error) => {
       statusCode = status;
       statusError = error;
-    }
+    };
     this.on('quit', quitListener);
     try {
-      mod.callMain(args);
+      mod.callMain(args || []);
 
       if (statusCode > 0 && statusError) {
         throw statusError;
@@ -174,48 +193,50 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWWrapper<T>, IE
     }
   }
 
+  private module2wrapper(mod: IModule) {
+    const that = this;
+    return <ISyncEMWWrapper<T> & IEMWMain>{
+      FileSystem: mod.FS,
+      on(event: string, listener: (...args: any[]) => void) {
+        that.on(event, listener); return this;
+      },
+      once(event: string, listener: (...args: any[]) => void) {
+        that.once(event, listener); return this;
+      },
+      prependListener(event: string, listener: (...args: any[]) => void) {
+        that.prependListener(event, listener); return this;
+      },
+      prependOnceListener(event: string, listener: (...args: any[]) => void) {
+        that.prependOnceListener(event, listener); return this;
+      },
+      addListener(event: string, listener: (...args: any[]) => void) {
+        that.addListener(event, listener); return this;
+      },
+      removeListener(event: string, listener: (...args: any[]) => void) {
+        that.removeListener(event, listener); return this;
+      },
+      off(event: string, listener: (...args: any[]) => void) {
+        that.off(event, listener); return this;
+      },
+      removeAllListeners(event?: string) {
+        that.removeAllListeners(event); return this;
+      },
+      kill: (signal) => mod.abort(signal),
+      stderr: this.stderr,
+      stdin: this.stdin,
+      stdout: this.stdout,
+      main: (args?: string[]) => this._callMain(mod, args),
+      fn: buildSyncFunctions<T>(mod, this.options.functions)
+    };
+  }
+
   sync() {
     if (this._sync) {
       return this._sync;
     }
-    return this._load()
-      .then((mod) => new Promise<IModule>((resolve) => mod.then(resolve))) // wait for ready
-      .then((mod) => {
-        const that = this;
-        return <ISyncEMWWrapper<T> & IEMWMain>{
-          FileSystem: mod.FS,
-          on(event: string, listener: (...args: any[]) => void) {
-            that.on(event, listener); return this;
-          },
-          once(event: string, listener: (...args: any[]) => void) {
-            that.once(event, listener); return this;
-          },
-          prependListener(event: string, listener: (...args: any[]) => void) {
-            that.prependListener(event, listener); return this;
-          },
-          prependOnceListener(event: string, listener: (...args: any[]) => void) {
-            that.prependOnceListener(event, listener); return this;
-          },
-          addListener(event: string, listener: (...args: any[]) => void) {
-            that.addListener(event, listener); return this;
-          },
-          removeListener(event: string, listener: (...args: any[]) => void) {
-            that.removeListener(event, listener); return this;
-          },
-          off(event: string, listener: (...args: any[]) => void) {
-            that.off(event, listener); return this;
-          },
-          removeAllListeners(event?: string) {
-            that.removeAllListeners(event); return this;
-          },
-          kill: (signal) => mod.abort(signal),
-          stderr: this.stderr,
-          stdin: this.stdin,
-          stdout: this.stdout,
-          main: (args: string[]) => this._callMain(mod, args),
-          fn: buildSyncFunctions<T>(mod, this.options.functions)
-        };
-      });
+    return this._sync = this._load()
+      .then((mod) => this.readySemaphore!.then(() => mod)) // wait for ready
+      .then((mod) => this.module2wrapper(mod.mod));
   }
 
   emit(event: 'error', err: Error): boolean;
@@ -231,7 +252,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWWrapper<T>, IE
 
 
 export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options?: Partial<IEMWOptions> & {main: false}): IAsyncEMWWrapper<T>;
-export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options?: Partial<IEMWOptions>): IEMWMainPromise & IAsyncEMWWrapper<T & IEMWMain>;
-export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options?: Partial<IEMWOptions> & {main?: false}): IEMWMainPromise & IAsyncEMWWrapper<T & IEMWMain> {
-  return new EMScriptWrapper<T & IEMWMain>(loader, options);
+export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options?: Partial<IEMWOptions>): IAsyncEMWMainWrapper<T>;
+export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule>, options?: Partial<IEMWOptions> & {main?: false}): IAsyncEMWMainWrapper<T> {
+  return new EMScriptWrapper<T>(loader, options);
 }
