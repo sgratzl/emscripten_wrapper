@@ -6,6 +6,7 @@
     "sourceMap": true,
     "moduleResolution": "node",
     "outDir": "build",
+    "rootDir": "src",
     "composite": true,
     "jsx": "react",
     "experimentalDecorators": true,
@@ -16,6 +17,7 @@
       "es2017.object"
     ],
     "declaration": true,
+    "declarationMap": true, 
     "removeComments": false,
     "noImplicitAny": true,
     "forceConsistentCasingInFileNames": true,
@@ -31,8 +33,7 @@
   "compileOnSave": false,
   "include": [
     "src/**/*.ts",
-    "src/**/*.tsx",
-    "tsd.d.ts"
+    "src/**/*.tsx"
   ],
   "exclude": [
     "src/**/*.d.ts"
