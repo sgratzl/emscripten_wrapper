@@ -1,0 +1,72 @@
+{
+  "name": "emscripten_wrapper",
+  "version": "1.0.0",
+  "description": "simplified wrapper around EMScripten Modules",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sgratzl/emscripten_wrapper.git"
+  },
+  "author": {
+    "name": "Samuel Gratzl",
+    "email": "sam@sgratzl.com",
+    "url": "https://www.sgratzl.com"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sgratzl/emscripten_wrapper/issues"
+  },
+  "homepage": "https://github.com/sgratzl/emscripten_wrapper#readme",
+  "main": "build/index.js",
+  "module": "src/index.js",
+  "types": "src/index.d.ts",
+  "sideEffects": false,
+  "files": [
+    "build",
+    "!build/docs",
+    "src/**/*.js",
+    "src/**/*.d.ts"
+  ],
+  "scripts": {
+    "clean": "rimraf build dist && npm run clean:compile",
+    "clean:compile": "rimraf src/**/*.map src/**/*.js src/**/*.d.ts tests/**/*.js tests/**/*.map tests/**/*.d.ts",
+    "compile": "tsc -b",
+    "compile:dev": "tsc -b ./tsconfig.dev.json",
+    "lint": "tslint -p tsconfig.json -c tslint.json",
+    "docs": "npm run clean:compile && typedoc --tsconfig tsconfig.dev.json --out ./build/docs/ src tsd.d.ts",
+    "pretest": "npm run clean && npm run compile",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "posttest": "npm run lint",
+    "prebuild": "npm run clean && npm run test",
+    "build:dev": "npm run compile:dev",
+    "build:prod": "npm run compile",
+    "build": "npm run build:prod",
+    "dev": "npm run clean && npm run compile:dev && npm run build:dev",
+    "watch": "tsc -b -w ./tsconfig.dev.json",
+    "predist": "npm run build",
+    "dist": "echo 'dummy'",
+    "prepare": "echo 'dummy prepare since prepack has no dev dependencies'",
+    "prepack": "npm run clean && npm run compile && npm run build:prod",
+    "release:major": "release-it major",
+    "release:minor": "release-it minor",
+    "release:patch": "release-it patch",
+    "release:pre": "release-it --preRelease=alpha --npm.tag=next"
+  },
+  "devDependencies": {
+    "@types/jest": "^24.0.13",
+    "jest": "^24.8.0",
+    "mkdirp": "^0.5.1",
+    "release-it": "^12.2.2",
+    "rimraf": "^2.6.3",
+    "ts-jest": "^24.0.2",
+    "tslint": "^5.17.0",
+    "tslint-consistent-codestyle": "^1.15.1",
+    "tslint-eslint-rules": "^5.4.0",
+    "typedoc": "^0.14.2",
+    "typescript": "^3.5.1"
+  },
+  "dependencies": {
+    "@types/emscripten": "0.0.32",
+    "@types/node": "^12.0.4"
+  }
+}
