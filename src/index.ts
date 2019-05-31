@@ -27,7 +27,7 @@ export type PromiseFunction<T> =
 
 export type Promisified<T> = {
   [P in keyof T]: PromiseFunction<T[P]>;
-}
+};
 
 export interface IEMWMainPromise {
   main(args?: string[]): Promise<number>;
