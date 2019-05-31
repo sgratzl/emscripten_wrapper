@@ -82,14 +82,14 @@ export interface ISyncEMWWrapper<T> extends IEMWWrapper {
   readonly fn: T;
 }
 
-export interface IAsyncEMWWrapper<T> extends IEMWWrapper {
+export interface IAsyncEMWWrapper<T = {}> extends IEMWWrapper {
   readonly FileSystem: Promise<EMScriptFS>;
   readonly fn: Promisified<T>;
 
   sync(): Promise<ISyncEMWWrapper<T>>;
 }
 
-export interface IAsyncEMWMainWrapper<T> extends IEMWWrapper, IEMWMainPromise {
+export interface IAsyncEMWMainWrapper<T = {}> extends IEMWWrapper, IEMWMainPromise {
   readonly FileSystem: Promise<EMScriptFS>;
   readonly fn: Promisified<T>;
 
