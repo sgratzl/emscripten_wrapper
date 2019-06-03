@@ -10,3 +10,4 @@ node_modules/
 *.css
 *.log
 *.tsbuildinfo
+/demo/build
