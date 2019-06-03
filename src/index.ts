@@ -7,7 +7,13 @@ export {IEMWInStream, IEMWOutStream} from './stream';
 
 
 export interface IFunctionDeclaration {
+  /**
+   * defines the argument types, supported types are string and number, arrays have to be Uint8Typed Arrays to work
+   */
   arguments: ('string' | 'number' | 'array')[];
+  /**
+   * defines the return type of this function
+   */
   returnType: 'string' | 'number';
 }
 
@@ -31,18 +37,30 @@ export type Promisified<T> = {
 
 export interface IEMWMainPromise {
   main(args?: string[]): Promise<number>;
+
+  run(args?: string[]): Promise<{stdout: string, stderr: string, exitCode: number, error?: Error}>;
 }
 
 export interface IEMWMain {
+  /**
+   * executes the main function returns or throws an error
+   * @param args optional main arguments
+   */
   main(args?: string[]): number;
+
+  /**
+   * similar to main but returns a status object including stdout, stderr, and the exitCode
+   * @param args optional main arguments
+   */
+  run(args?: string[]): {stdout: string, stderr: string, exitCode: number, error?: Error};
 }
 
 export interface IEMWWrapper {
   kill(signal?: string): void;
 
-  stdin: IEMWInStream;
-  stdout: IEMWOutStream;
-  stderr: IEMWOutStream;
+  readonly stdin: IEMWInStream;
+  readonly stdout: IEMWOutStream;
+  readonly stderr: IEMWOutStream;
 
   addListener(event: 'error', listener: (err: Error) => void): this;
   addListener(event: 'exit', listener: (code: number) => void): this;
@@ -163,6 +181,10 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     return this.sync().then((mod) => mod.main(args));
   }
 
+  run(args?: string[]) {
+    return this.sync().then((mod) => mod.run(args));
+  }
+
   kill(signal?: string) {
     return this.sync().then((mod) => mod.kill(signal));
   }
@@ -190,6 +212,42 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     finally {
       this.off('quit', quitListener);
     }
+  }
+
+  private _runMain(mod: IModule, args?: string[]) {
+    let statusCode = 0;
+    let statusError: Error | null = null;
+    let stdout = '';
+    let stderr = '';
+
+    const quitListener = (status: number, error: Error) => {
+      statusCode = status;
+      statusError = error;
+    };
+    this.on('quit', quitListener);
+    const stdoutListener = (chunk: string) => {
+      stdout += chunk;
+    };
+    this.stdout.on('data', stdoutListener);
+    const stderrListener = (chunk: string) => {
+      stderr += chunk;
+    };
+    this.stderr.on('data', stderrListener);
+    try {
+      mod.callMain(args || []);
+    } catch (error) {
+      statusError = error;
+    } finally {
+      this.off('quit', quitListener);
+      this.stdout.off('data', stdoutListener);
+      this.stderr.off('data', stderrListener);
+    }
+    return {
+      stdout,
+      stderr,
+      exitCode: statusCode,
+      error: statusError || undefined
+    };
   }
 
   private module2wrapper(mod: IModule) {
@@ -225,6 +283,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
       stdin: this.stdin,
       stdout: this.stdout,
       main: (args?: string[]) => this._callMain(mod, args),
+      run: (args?: string[]) => this._runMain(mod, args),
       fn: buildSyncFunctions<T>(mod, this.options.functions)
     };
   }
