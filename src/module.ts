@@ -45,6 +45,7 @@ export interface IModule {
   then(callback: (module: IModule) => void): this;
 
   FS: EMScriptFS;
+  ENV: {[key: string]: string};
 }
 
 export interface IEMScriptModule {

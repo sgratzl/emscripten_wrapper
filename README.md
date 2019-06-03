@@ -18,12 +18,12 @@ Prerequisites
 In order to work the Emscripten module has to be compiled with at least the following flags
 
 ```bash
- -s FORCE_FILESYSTEM=1 -s MODULARIZE=1 -s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap', 'FS']"
+ -s FORCE_FILESYSTEM=1 -s MODULARIZE=1 -s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap', 'FS', 'ENV']"
 ```
 
 e.g. 
 ```bash
-emcc helloworld.cpp -s FORCE_FILESYSTEM=1 -s MODULARIZE=1 -s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap', 'FS']" -o helloworld.js
+emcc helloworld.cpp -s FORCE_FILESYSTEM=1 -s MODULARIZE=1 -s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap', 'FS', 'ENV']" -o helloworld.js
 ```
 
 This ensures that the FileSystem (`FS`) and `crwap` (to call custom functions) are available while also enforcing that emcc outputs a module. 
@@ -36,7 +36,7 @@ such as
 
 ```bash
 python /emsdk_portable/sdk/tools/file_packager.py helloworld.data --preload ./share --from-emcc --js-output=file_packager.js
-emcc helloworld.cpp --pre-js file_packager_patch.js --pre-js file_packager.js -s FORCE_FILESYSTEM=1 -s MODULARIZE=1 -s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap', 'FS']" -o helloworld.js
+emcc helloworld.cpp --pre-js file_packager_patch.js --pre-js file_packager.js -s FORCE_FILESYSTEM=1 -s MODULARIZE=1 -s EXTRA_EXPORTED_RUNTIME_METHODS="['cwrap', 'FS', 'ENV']" -o helloworld.js
 ```
 
 Usage
@@ -93,8 +93,12 @@ the createdWrapper is of following the interface `IAsyncEMWMainWrapper` defined 
 important methods
  * `.main(args?: string[]): Promise<number>`
    execute the main function and returns a promise when done. In case of an error (status code not 0) the promise will be rejected with the error
- * `.FileSystem: Promise<EMScriptFS>`
+ * `.run(args?: string[]): Promise<{stdout: string, stderr: string, exitCode: number, error?: Error}>`
+   similar to `.main` but returns an object with combined output information similar to `subprocess.run` from Python
+ * `.fileSystem: Promise<EMScriptFS>`
    lazy access to the filesystem of Emscripten
+ * `.environmentVariables: {[key: string]: string}`
+   access to set virtual environment variables
  * `.fn.${functioname}(${arguments}): Promise<$returnType>`
    provides easy access to all the defined functions, e.g. for the example above there would be an `.fn.add_values(a: number, b: number): Promise<number>` function
  * `.sync(): Promise<ISyncEMWWrapper>`

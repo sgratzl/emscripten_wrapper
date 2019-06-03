@@ -67,6 +67,8 @@ export interface IEMWMain {
 }
 
 export interface IEMWWrapper {
+  readonly environmentVariables: {[key: string]: string};
+
   kill(signal?: string): void;
 
   readonly stdin: IEMWInStream;
@@ -107,7 +109,7 @@ export interface IEMWWrapper {
 }
 
 export interface ISyncEMWWrapper<T> extends IEMWWrapper {
-  readonly FileSystem: EMScriptFS;
+  readonly fileSystem: EMScriptFS;
   /**
    * object of exposed functions
    */
@@ -115,7 +117,7 @@ export interface ISyncEMWWrapper<T> extends IEMWWrapper {
 }
 
 export interface IAsyncEMWWrapper<T = {}> extends IEMWWrapper {
-  readonly FileSystem: Promise<EMScriptFS>;
+  readonly fileSystem: Promise<EMScriptFS>;
   /**
    * object of exposed functions
    */
@@ -128,7 +130,7 @@ export interface IAsyncEMWWrapper<T = {}> extends IEMWWrapper {
 }
 
 export interface IAsyncEMWMainWrapper<T = {}> extends IEMWWrapper, IEMWMainPromise {
-  readonly FileSystem: Promise<EMScriptFS>;
+  readonly fileSystem: Promise<EMScriptFS>;
   /**
    * object of exposed functions
    */
@@ -166,6 +168,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
   private _sync: Promise<ISyncEMWWrapper<T> & IEMWMain> | null = null;
 
   readonly fn: Promisified<T>;
+  environmentVariables: {[key: string]: string} = {};
 
   constructor(private readonly _loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}> | IEMScriptModule | {default: IEMScriptModule}, private readonly options: Partial<IEMWOptions> & {main?: false} = {}) {
     super();
@@ -215,7 +218,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     return this.sync().then((mod) => mod.kill(signal));
   }
 
-  get FileSystem() {
+  get fileSystem() {
     return this._load().then((mod) => mod.mod.FS);
   }
 
@@ -278,8 +281,13 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
 
   private module2wrapper(mod: IModule) {
     const that = this;
+    // inject environment variables that where set before
+    Object.assign(mod.ENV, this.environmentVariables);
+    this.environmentVariables = mod.ENV;
+
     return <ISyncEMWWrapper<T> & IEMWMain>{
-      FileSystem: mod.FS,
+      fileSystem: mod.FS,
+      environmentVariables: mod.ENV,
       on(event: string, listener: (...args: any[]) => void) {
         that.on(event, listener); return this;
       },
