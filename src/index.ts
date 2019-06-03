@@ -250,8 +250,10 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
 
 
 
-export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, options?: Partial<IEMWOptions> & {main: false}): IAsyncEMWWrapper<T>;
-export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, options?: Partial<IEMWOptions>): IAsyncEMWMainWrapper<T>;
-export default function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, options?: Partial<IEMWOptions> & {main?: false}): IAsyncEMWMainWrapper<T> {
+export function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, options?: Partial<IEMWOptions> & {main: false}): IAsyncEMWWrapper<T>;
+export function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, options?: Partial<IEMWOptions>): IAsyncEMWMainWrapper<T>;
+export function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, options?: Partial<IEMWOptions> & {main?: false}): IAsyncEMWMainWrapper<T> {
   return new EMScriptWrapper<T>(loader, options);
 }
+
+export default createWrapper;
