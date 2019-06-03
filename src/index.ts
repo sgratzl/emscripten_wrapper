@@ -18,6 +18,9 @@ export interface IFunctionDeclaration {
 }
 
 export interface IEMWOptions {
+  /**
+   * function defintions that will be available via `.fn`
+   */
   functions: {[functionName: string]: IFunctionDeclaration};
 }
 
@@ -36,8 +39,16 @@ export type Promisified<T> = {
 };
 
 export interface IEMWMainPromise {
+  /**
+   * executes the main function returns or throws an error
+   * @param args optional main arguments
+   */
   main(args?: string[]): Promise<number>;
 
+  /**
+   * similar to main but returns a status object including stdout, stderr, and the exitCode
+   * @param args optional main arguments
+   */
   run(args?: string[]): Promise<{stdout: string, stderr: string, exitCode: number, error?: Error}>;
 }
 
@@ -97,20 +108,35 @@ export interface IEMWWrapper {
 
 export interface ISyncEMWWrapper<T> extends IEMWWrapper {
   readonly FileSystem: EMScriptFS;
+  /**
+   * object of exposed functions
+   */
   readonly fn: T;
 }
 
 export interface IAsyncEMWWrapper<T = {}> extends IEMWWrapper {
   readonly FileSystem: Promise<EMScriptFS>;
+  /**
+   * object of exposed functions
+   */
   readonly fn: Promisified<T>;
 
+  /**
+   * returns a sync version of this wrapper that was resolved then the module is ready
+   */
   sync(): Promise<ISyncEMWWrapper<T>>;
 }
 
 export interface IAsyncEMWMainWrapper<T = {}> extends IEMWWrapper, IEMWMainPromise {
   readonly FileSystem: Promise<EMScriptFS>;
+  /**
+   * object of exposed functions
+   */
   readonly fn: Promisified<T>;
 
+  /**
+   * returns a sync version of this wrapper that was resolved then the module is ready
+   */
   sync(): Promise<ISyncEMWWrapper<T> & IEMWMain>;
 }
 
@@ -141,7 +167,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
 
   readonly fn: Promisified<T>;
 
-  constructor(private readonly _loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, private readonly options: Partial<IEMWOptions> & {main?: false} = {}) {
+  constructor(private readonly _loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}> | IEMScriptModule | {default: IEMScriptModule}, private readonly options: Partial<IEMWOptions> & {main?: false} = {}) {
     super();
     this.fn = buildAsyncFunctions<T>(this, options.functions);
   }
@@ -153,7 +179,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     let readyResolve: (() => void) | null = null;
     this.readySemaphore = new Promise((resolve) => readyResolve = resolve);
 
-    this.module = this._loader().then((loaded) => {
+    this.module = Promise.resolve(this._loader()).then((loaded) => {
       // export fix
       const mod = (typeof (<{default: IEMScriptModule}>loaded).default === 'function') ? (<{default: IEMScriptModule}>loaded).default : <IEMScriptModule>loaded;
 
@@ -308,10 +334,14 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
 }
 
 
-
-export function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, options?: Partial<IEMWOptions> & {main: false}): IAsyncEMWWrapper<T>;
-export function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, options?: Partial<IEMWOptions>): IAsyncEMWMainWrapper<T>;
-export function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}>, options?: Partial<IEMWOptions> & {main?: false}): IAsyncEMWMainWrapper<T> {
+/**
+ * creates an easy to use wrapper around an emscripten module
+ * @param loader loader function to return the emscripten module
+ * @param options additional options foremost which functions and whether a main function is available
+ */
+export function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}> | IEMScriptModule | {default: IEMScriptModule}, options?: Partial<IEMWOptions> & {main: false}): IAsyncEMWWrapper<T>;
+export function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}> | IEMScriptModule | {default: IEMScriptModule}, options?: Partial<IEMWOptions>): IAsyncEMWMainWrapper<T>;
+export function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}> | IEMScriptModule | {default: IEMScriptModule}, options?: Partial<IEMWOptions> & {main?: false}): IAsyncEMWMainWrapper<T> {
   return new EMScriptWrapper<T>(loader, options);
 }
 
