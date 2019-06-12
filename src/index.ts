@@ -223,9 +223,10 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
       const mod = (typeof (<{default: IEMScriptModule}>loaded).default === 'function') ? (<{default: IEMScriptModule}>loaded).default : <IEMScriptModule>loaded;
 
       const m = mod({
-        print: this.stdout.push.bind(this.stdout),
-        printErr: this.stderr.push.bind(this.stderr),
-        stdin: this.stdin.read.bind(this.stdin),
+        // readd missing new line
+        print: (chunk) => this.stdout.push(`${chunk}\n`),
+        printErr: (chunk) => this.stderr.push(`${chunk}\n`),
+        stdin: () => this.stdin.read(),
         noInitialRun: true,
         noExitRuntime: true,
         onRuntimeInitialized: () => {
