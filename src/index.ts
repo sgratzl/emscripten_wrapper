@@ -116,26 +116,62 @@ export interface ISyncEMWWrapper<T> extends IEMWWrapper {
   readonly fn: T;
 }
 
-export interface IAsyncEMWWrapper<T = {}> extends IEMWWrapper {
+export interface IAsyncEMWWrapperBase<T = {}> extends IEMWWrapper {
   readonly fileSystem: Promise<EMScriptFS>;
   /**
    * object of exposed functions
    */
   readonly fn: Promisified<T>;
 
+  addListener(event: 'ready', listener: (wrapper: ISyncEMWWrapper<T>) => void): this;
+  addListener(event: 'error', listener: (err: Error) => void): this;
+  addListener(event: 'exit', listener: (code: number) => void): this;
+  addListener(event: 'quit', listener: (status: number) => void): this;
+
+  on(event: 'ready', listener: (wrapper: ISyncEMWWrapper<T>) => void): this;
+  on(event: 'error', listener: (err: Error) => void): this;
+  on(event: 'exit', listener: (code: number) => void): this;
+  on(event: 'quit', listener: (status: number) => void): this;
+
+  once(event: 'ready', listener: (wrapper: ISyncEMWWrapper<T>) => void): this;
+  once(event: 'error', listener: (err: Error) => void): this;
+  once(event: 'exit', listener: (code: number) => void): this;
+  once(event: 'quit', listener: (status: number) => void): this;
+
+  prependListener(event: 'ready', listener: (wrapper: ISyncEMWWrapper<T>) => void): this;
+  prependListener(event: 'error', listener: (err: Error) => void): this;
+  prependListener(event: 'exit', listener: (code: number) => void): this;
+  prependListener(event: 'quit', listener: (status: number) => void): this;
+
+  prependOnceListener(event: 'ready', listener: (wrapper: ISyncEMWWrapper<T>) => void): this;
+  prependOnceListener(event: 'error', listener: (err: Error) => void): this;
+  prependOnceListener(event: 'exit', listener: (code: number) => void): this;
+  prependOnceListener(event: 'quit', listener: (status: number) => void): this;
+
+  removeListener(event: 'ready', listener: (wrapper: ISyncEMWWrapper<T>) => void): this;
+  removeListener(event: 'error', listener: (err: Error) => void): this;
+  removeListener(event: 'exit', listener: (code: number) => void): this;
+  removeListener(event: 'quit', listener: (status: number) => void): this;
+
+  off(event: 'ready', listener: (wrapper: ISyncEMWWrapper<T>) => void): this;
+  off(event: 'error', listener: (err: Error) => void): this;
+  off(event: 'exit', listener: (code: number) => void): this;
+  off(event: 'quit', listener: (status: number) => void): this;
+
+  removeAllListeners(event?: 'ready'): this;
+  removeAllListeners(event?: 'error'): this;
+  removeAllListeners(event?: 'exit'): this;
+  removeAllListeners(event?: 'quit'): this;
+}
+
+export interface IAsyncEMWWrapper<T = {}> extends IAsyncEMWWrapperBase<T> {
   /**
    * returns a sync version of this wrapper that was resolved then the module is ready
    */
   sync(): Promise<ISyncEMWWrapper<T>>;
 }
 
-export interface IAsyncEMWMainWrapper<T = {}> extends IEMWWrapper, IEMWMainPromise {
-  readonly fileSystem: Promise<EMScriptFS>;
-  /**
-   * object of exposed functions
-   */
-  readonly fn: Promisified<T>;
-
+export interface IAsyncEMWMainWrapper<T = {}> extends IAsyncEMWWrapperBase<T>, IEMWMainPromise {
   /**
    * returns a sync version of this wrapper that was resolved then the module is ready
    */
@@ -328,9 +364,14 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     }
     return this._sync = this._load()
       .then((mod) => this.readySemaphore!.then(() => mod)) // wait for ready
-      .then((mod) => this.module2wrapper(mod.mod));
+      .then((mod) => {
+        const wrapper = this.module2wrapper(mod.mod);
+        this.emit('ready', wrapper);
+        return wrapper;
+      });
   }
 
+  emit(event: 'ready', wrapper: ISyncEMWWrapper<T> & IEMWMain): boolean;
   emit(event: 'error', err: Error): boolean;
   emit(event: 'exit', code: number): boolean;
   emit(event: 'quit', status: number): boolean;
