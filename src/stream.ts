@@ -50,6 +50,7 @@ export class SimpleInStream extends EventEmitter implements IEMWInStream {
     }
     const next = this.buffer[0];
     this.buffer = this.buffer.slice(1);
-    return next;
+    // need to return the number
+    return next.charCodeAt(0);
   }
 }

@@ -21,9 +21,9 @@ export interface IModuleOptions {
   getPreloadedPackage(remotePackageName: string, remotePackageSize: number): ArrayBuffer | null;
   locateFile(url: string, prefix?: string): string;
 
-  stdin(): string | null;
-  stdout(chunk: string): void;
-  stderr(chunk: string): void;
+  stdin(): number | null;
+  stdout(char: number): void;
+  stderr(char: number): void;
 
   onAbort(what?: string): void;
   quit(code: number, status: IExitStatus): void;
