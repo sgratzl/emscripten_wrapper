@@ -17,7 +17,7 @@
   },
   "homepage": "https://github.com/sgratzl/emscripten_wrapper#readme",
   "main": "build/index.js",
-  "module": "bulid/src/index.js",
+  "module": "build/src/index.js",
   "types": "build/index.d.ts",
   "sideEffects": false,
   "files": [
