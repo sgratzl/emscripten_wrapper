@@ -27,13 +27,13 @@ export interface IMainReplyMessage extends IModuleMessage {
 export interface IFunctionRequestMessage extends IModuleMessage {
   type: 'fn';
   function: string;
-  args: (string | number)[];
+  args: (string | number | Uint8Array)[];
 }
 
 export interface IFunctionReplyMessage extends IModuleMessage {
   type: 'fn';
   function: string;
-  returnValue: (string | number);
+  returnValue: (string | number | null);
 }
 
 export interface ISetEnvironmentVariableRequestMessage extends IModuleMessage {

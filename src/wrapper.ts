@@ -1,6 +1,7 @@
 import {EventEmitter} from 'events';
 import {IEMScriptModule, EMScriptFS, IModule, IModuleOptions} from './module';
 import {SimpleOutStream, SimpleInStream, IEMWInStream, IEMWOutStream} from './stream';
+import {ModuleWorker} from './worker';
 
 export interface IFunctionDeclaration {
   /**
@@ -451,6 +452,10 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
   }
 
   // TODO if there is an exception in ccall and a converter was used (array or string) stackRestore won't be called
+
+  createWorkerAdapter() {
+    return new ModuleWorker<T>(this);
+  }
 }
 
 /**
