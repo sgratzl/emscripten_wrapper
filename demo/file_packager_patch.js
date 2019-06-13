@@ -30,7 +30,7 @@ if (filePackagerPatch_isNodeOrShell()) {
       return wrappee(path, prefix);
     }
     // file packager is called before a proper script location decection
-    var base = _scriptDir ? _scriptDir : (typeof importScripts === 'function' ? self.location.href : document.currentScript.src);
+    var base = _scriptDir ? _scriptDir : (typeof importScripts === 'function' ? self.location.href : (typeof document !== 'undefined' && document.currentScript ? document.currentScript.src : ''));
     if (base.indexOf('blob:') !== 0) {
       base = base.substr(0, base.lastIndexOf('/') + 1);
     } else {
