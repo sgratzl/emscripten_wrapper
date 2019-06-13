@@ -16,5 +16,5 @@ CMAKE
 mkdir build
 cd build
 cmake .. -DCMAKE_TOOLCHAIN_FILE=/emsdk_portable/sdk/cmake/Modules/Platform/Emscripten.cmake
-make
+cmake --build .
 ```

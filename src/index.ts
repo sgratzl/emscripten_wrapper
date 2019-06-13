@@ -265,7 +265,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
         }
       };
 
-      console.log(wasm, data, mem);
+      // console.log(wasm, data, mem);
       const toLocate: {suffix: string, location: string}[] = [];
 
       // WASM
