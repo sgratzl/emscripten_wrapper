@@ -1,9 +1,9 @@
 import {EventEmitter} from 'events';
 import {IEMScriptModule, EMScriptFS, IModule, IModuleOptions} from './module';
 import {SimpleOutStream, SimpleInStream, IEMWInStream, IEMWOutStream} from './stream';
-import {ModuleWorker} from './ModuleWorker';
+import {ModuleWorker, IMessageAdapter} from './ModuleWorker';
 import {IEMWOptions, buildAsyncFunctions, buildSyncFunctions, Promisified} from './utils';
-import {ModuleWorkerClient, IEMWWorkerClient} from './ModuleWorkerClient';
+import {ModuleWorkerClient, IEMWWorkerClient, IWorkerLike} from './ModuleWorkerClient';
 
 
 export interface IEMWMainPromise {
@@ -139,8 +139,8 @@ export interface IAsyncEMWWrapper<T = {}> extends IAsyncEMWWrapperBase<T> {
    */
   sync(): Promise<ISyncEMWWrapper<T>>;
 
-  createWorker(): ModuleWorker<T>;
-  createWorkerClient(worker: string | Worker | URL): IEMWWorkerClient<T>;
+  createWorker(adapter?: IMessageAdapter): ModuleWorker<T>;
+  createWorkerClient(worker: string | IWorkerLike | URL): IEMWWorkerClient<T>;
 }
 
 export interface IAsyncEMWMainWrapper<T = {}> extends IAsyncEMWWrapperBase<T>, IEMWMainPromise {
@@ -149,8 +149,8 @@ export interface IAsyncEMWMainWrapper<T = {}> extends IAsyncEMWWrapperBase<T>, I
    */
   sync(): Promise<ISyncEMWWrapper<T> & IEMWMain>;
 
-  createWorker(): ModuleWorker<T>;
-  createWorkerClient(worker: string | Worker | URL): IEMWWorkerClient<T> & IEMWMainPromise;
+  createWorker(adapter?: IMessageAdapter): ModuleWorker<T>;
+  createWorkerClient(worker: string | IWorkerLike | URL): IEMWWorkerClient<T> & IEMWMainPromise;
 }
 
 declare type IModuleLike<T> = PromiseLike<T | {default: T}> | T | {default: T};
@@ -415,11 +415,11 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
 
   // TODO if there is an exception in ccall and a converter was used (array or string) stackRestore won't be called
 
-  createWorker(): ModuleWorker<T> {
-    return new ModuleWorker<T>(this);
+  createWorker(adapter?: IMessageAdapter): ModuleWorker<T> {
+    return new ModuleWorker<T>(this, adapter);
   }
 
-  createWorkerClient(worker: string | Worker | URL) {
+  createWorkerClient(worker: string | IWorkerLike | URL) {
     return new ModuleWorkerClient<T>(worker, this.options);
   }
 }

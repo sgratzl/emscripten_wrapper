@@ -1,15 +1,15 @@
-import {IEMWMainPromise, IEMWWrapper } from './wrapper';
-import {IEMWOptions, Promisified} from './utils';
 import {EventEmitter} from 'events';
-import {SimpleOutStream, SimpleInStream} from './stream';
-import {IReplyMessage, IModuleMessage, IMainReplyMessage, IReadTextFileReplyMessage, IReadBinaryFileReplyMessage, IFunctionReplyMessage} from './ModuleWorker';
+import {IFunctionReplyMessage, IMainReplyMessage, IModuleMessage, IReadBinaryFileReplyMessage, IReadTextFileReplyMessage, IReplyMessage, ISetEnvironmentVariableRequestMessage} from './ModuleWorker';
+import {SimpleInStream, SimpleOutStream} from './stream';
+import {IEMWOptions, Promisified} from './utils';
+import {IEMWMainPromise, IEMWWrapper} from './wrapper';
 
 
-export interface IWorkerFS {
-  ensureDir(dir: string): void;
+export interface ISimpleFS {
+  ensureDir(dir: string): Promise<true>;
 
-  writeTextFile(path: string, content: string): void;
-  writeBinaryFile(path: string, content: ArrayBufferView): void;
+  writeTextFile(path: string, content: string): Promise<true>;
+  writeBinaryFile(path: string, content: ArrayBufferView): Promise<true>;
 
   readTextFile(path: string): Promise<string>;
   readBinaryFile(path: string): Promise<ArrayBufferView>;
@@ -22,7 +22,7 @@ export interface IEMWWorkerClient<T = {}> extends IEMWWrapper {
    */
   readonly fn: Promisified<T>;
 
-  readonly fileSystem: IWorkerFS;
+  readonly simpleFileSystem: ISimpleFS;
 
   addListener(event: 'ready', listener: () => void): this;
   addListener(event: 'error', listener: (err: Error) => void): this;
@@ -65,14 +65,19 @@ export interface IEMWWorkerClient<T = {}> extends IEMWWrapper {
   removeAllListeners(event?: 'quit'): this;
 }
 
+export interface IWorkerLike {
+  addEventListener(type: 'message', callback: (msg: MessageEvent) => void): void;
+  postMessage(msg: any, transfer?: Transferable[]): void;
+  terminate(): void;
+}
+
 export class ModuleWorkerClient<T = {}> extends EventEmitter implements IEMWWorkerClient<T>, IEMWMainPromise {
   readonly fn: Promisified<T>;
-  // TODO sync using proxy
-  environmentVariables: {[key: string]: string} = {};
+  readonly environmentVariables: {[key: string]: string};
 
-  protected readonly worker: Worker;
+  protected readonly worker: IWorkerLike;
 
-  readonly fileSystem: IWorkerFS;
+  readonly simpleFileSystem: ISimpleFS;
 
   readonly stdout = new SimpleOutStream();
   readonly stderr = new SimpleOutStream();
@@ -80,10 +85,10 @@ export class ModuleWorkerClient<T = {}> extends EventEmitter implements IEMWWork
 
   private keyCounter: number = 0;
 
-  constructor(worker: string | URL | Worker, options: Partial<IEMWOptions> = {}) {
+  constructor(worker: string | URL | IWorkerLike, options: Partial<IEMWOptions> = {}) {
     super();
     this.worker = typeof worker === 'string' || worker instanceof URL ? new Worker(worker) : worker;
-    this.worker.onmessage = this.onMessage.bind(this);
+    this.worker.addEventListener('message', this.onMessage.bind(this));
 
     this.on('message', (msg: IReplyMessage) => {
       switch (msg.type) {
@@ -116,13 +121,25 @@ export class ModuleWorkerClient<T = {}> extends EventEmitter implements IEMWWork
     });
     this.fn = obj;
 
-    this.fileSystem = {
-      ensureDir: (path) => this.postMessage({key: this.nextKey(), type: 'ensureDir', path}),
-      writeTextFile: (path, content) => this.postMessage({key: this.nextKey(), type: 'writeTextFile', path, content}),
-      writeBinaryFile: (path, content) => this.postMessage({key: this.nextKey(), type: 'writeBinaryFile', path, content}),
+    this.simpleFileSystem = {
+      ensureDir: (path) => this.sendAndWaitOK({type: 'ensureDir', path}),
+      writeTextFile: (path, content) => this.sendAndWaitOK({type: 'writeTextFile', path, content}),
+      writeBinaryFile: (path, content) => this.sendAndWaitOK({type: 'writeBinaryFile', path, content}),
       readTextFile: (path) => this.sendAndWait<IReadTextFileReplyMessage, string>({type: 'readTextFile', path}, [], (msg) => msg.type === 'readTextFile', (msg) => msg.content),
       readBinaryFile: (path) => this.sendAndWait<IReadBinaryFileReplyMessage, ArrayBufferView>({type: 'readBinaryFile', path}, [], (msg) => msg.type === 'readBinaryFile', (msg) => msg.content)
     };
+
+    this.environmentVariables = new Proxy(<{[key: string]: string}>{}, {
+      get: (obj: any, prop) => {
+        return obj[prop];
+      },
+      set: (obj: any, prop, value) => {
+        obj[prop] = value;
+        // forward to worker
+        this.postMessage(<ISetEnvironmentVariableRequestMessage>{key: this.nextKey(), type: 'setEnv', name: prop, value});
+        return true;
+      }
+    });
   }
 
   protected nextKey() {
@@ -155,6 +172,10 @@ export class ModuleWorkerClient<T = {}> extends EventEmitter implements IEMWWork
       this.on('message', listener);
       this.postMessage(Object.assign({key}, msg), transfer);
     });
+  }
+
+  protected sendAndWaitOK(msg: {type: string, [key: string]: any}, transfer: Transferable[] = []): Promise<true> {
+    return this.sendAndWait<any, true>(msg, transfer, (msg) => msg.type === 'ok', () => true);
   }
 
   main(args?: string[]) {

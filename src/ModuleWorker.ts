@@ -12,6 +12,10 @@ export interface IErrorReplyMessage extends IModuleMessage {
   stderr: string;
 }
 
+export interface IOkReplyMessage extends IModuleMessage {
+  type: 'ok';
+}
+
 export interface IMainRequestMessage extends IModuleMessage {
   type: 'main';
   args: string[];
@@ -115,19 +119,34 @@ export interface IEnsureDirRequestMessage extends IModuleMessage {
 }
 
 export declare type IRequestMessage = IStdInRequestMessage | IClearStdInRequestMessage | IEnsureDirRequestMessage | IMainRequestMessage | IFunctionRequestMessage | ISetEnvironmentVariableRequestMessage | IWriteTextFileRequestMessage | IWriteBinaryFileRequestMessage | IReadTextFileRequestMessage | IReadBinaryFileRequestMessage;
-export declare type IReplyMessage = IReadyReplyMessage | IExitReplyMessage | IQuitReplyMessage | IErrorReplyMessage | IFunctionReplyMessage | IStdOutReplyMessage | IStdErrReplyMessage | IMainReplyMessage | IReadTextFileReplyMessage | IReadBinaryFileReplyMessage;
+export declare type IReplyMessage = IOkReplyMessage | IReadyReplyMessage | IExitReplyMessage | IQuitReplyMessage | IErrorReplyMessage | IFunctionReplyMessage | IStdOutReplyMessage | IStdErrReplyMessage | IMainReplyMessage | IReadTextFileReplyMessage | IReadBinaryFileReplyMessage;
 
 export declare type IReplyer = (msg: IModuleMessage & {[key: string]: any}, transfer?: Transferable[]) => void;
 
+export interface IMessageAdapter {
+  postMessage(msg: any, transfer?: Transferable[]): void;
+  addEventListener(type: 'message', listener: (msg: any, reply: (msg: any, transfer?: Transferable[]) => void) => void): void;
+}
+
+const WORKER_ADAPTER: IMessageAdapter = {
+  postMessage: (msg, transfer) => postMessage(msg, '*', transfer),
+  addEventListener: (_type, listener) => {
+    addEventListener('message', (msg: MessageEvent) => {
+      const reply = (msg: any, transfer: Transferable[] = []) => postMessage(msg, msg.origin, transfer);
+      listener(msg.data, reply);
+    });
+  }
+};
+
 export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWrapper<FN>> {
-  constructor(protected readonly module: T) {
-    this.module.on('ready', () => postMessage(<IReadyReplyMessage>{key: '', type: 'ready'}, '*'));
-    this.module.on('exit', (code) => postMessage(<IExitReplyMessage>{key: '', type: 'exit', code}, '*'));
-    this.module.on('quit', (status) => postMessage(<IQuitReplyMessage>{key: '', type: 'quit', status}, '*'));
+  constructor(protected readonly module: T, protected readonly adapter: IMessageAdapter = WORKER_ADAPTER) {
+    this.module.on('ready', () => adapter.postMessage(<IReadyReplyMessage>{key: '', type: 'ready'}));
+    this.module.on('exit', (code) => adapter.postMessage(<IExitReplyMessage>{key: '', type: 'exit', code}));
+    this.module.on('quit', (status) => adapter.postMessage(<IQuitReplyMessage>{key: '', type: 'quit', status}));
     // start loading
     this.module.sync();
 
-    onmessage = this.onMessage.bind(this);
+    adapter.addEventListener('message', this.onMessage.bind(this));
   }
 
   protected async runInModule(msg: IModuleMessage, run: (mod: ISyncEMWWrapper<FN>, out: () => ({stdout: string, stderr: string})) => void, reply: IReplyer) {
@@ -197,28 +216,62 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
     }, reply);
   }
 
-  private setEnv(msg: ISetEnvironmentVariableRequestMessage) {
+  private setEnv(msg: ISetEnvironmentVariableRequestMessage, reply: IReplyer) {
     this.module.environmentVariables[msg.name] = msg.value;
+    reply({
+      key: msg.key,
+      type: 'ok',
+    });
   }
 
-  private stdin(msg: IStdInRequestMessage) {
-    this.module.sync().then((m) => m.stdin.push(msg.chunk));
+  private stdin(msg: IStdInRequestMessage, reply: IReplyer) {
+    this.module.sync().then((m) => {
+      m.stdin.push(msg.chunk);
+      reply({
+        key: msg.key,
+        type: 'ok',
+      });
+    });
   }
 
-  private stdinClear(_msg: IClearStdInRequestMessage) {
-    this.module.sync().then((m) => m.stdin.clear());
+  private stdinClear(msg: IClearStdInRequestMessage, reply: IReplyer) {
+    this.module.sync().then((m) => {
+      m.stdin.clear();
+      reply({
+        key: msg.key,
+        type: 'ok',
+      });
+    });
   }
 
-  private writeTextFile(msg: IWriteTextFileRequestMessage) {
-    this.module.fileSystem.then((fs) => fs.writeFile(msg.path, msg.content, {encoding: 'utf8', flags: 'w'}));
+  private writeTextFile(msg: IWriteTextFileRequestMessage, reply: IReplyer) {
+    this.module.fileSystem.then((fs) => {
+      fs.writeFile(msg.path, msg.content, {encoding: 'utf8', flags: 'w'});
+      reply({
+        key: msg.key,
+        type: 'ok',
+      });
+    });
   }
 
-  private writeBinaryFile(msg: IWriteBinaryFileRequestMessage) {
-    this.module.fileSystem.then((fs) => fs.writeFile(msg.path, msg.content));
+  private writeBinaryFile(msg: IWriteBinaryFileRequestMessage, reply: IReplyer) {
+    this.module.fileSystem.then((fs) => {
+      fs.writeFile(msg.path, msg.content);
+      reply({
+        key: msg.key,
+        type: 'ok',
+      });
+    });
   }
 
-  private ensureDir(msg: IEnsureDirRequestMessage) {
-    this.module.fileSystem.then((fs) => ensureDir(fs, msg.path));
+  private ensureDir(msg: IEnsureDirRequestMessage, reply: IReplyer) {
+    this.module.fileSystem.then((fs) => {
+      ensureDir(fs, msg.path);
+      reply({
+        key: msg.key,
+        type: 'ok',
+      });
+    });
   }
 
   private readTextFile(msg: IReadTextFileRequestMessage, reply: IReplyer) {
@@ -252,17 +305,17 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
       case 'fn':
         return this.fn(<IFunctionRequestMessage>msg, reply);
       case 'stdin':
-        return this.stdin(<IStdInRequestMessage>msg);
+        return this.stdin(<IStdInRequestMessage>msg, reply);
       case 'stdinClear':
-        return this.stdinClear(<IClearStdInRequestMessage>msg);
+        return this.stdinClear(<IClearStdInRequestMessage>msg, reply);
       case 'setEnv':
-        return this.setEnv(<ISetEnvironmentVariableRequestMessage>msg);
+        return this.setEnv(<ISetEnvironmentVariableRequestMessage>msg, reply);
       case 'ensureDir':
-        return this.ensureDir(<IEnsureDirRequestMessage>msg);
+        return this.ensureDir(<IEnsureDirRequestMessage>msg, reply);
       case 'writeTextFile':
-        return this.writeTextFile(<IWriteTextFileRequestMessage>msg);
+        return this.writeTextFile(<IWriteTextFileRequestMessage>msg, reply);
       case 'writeBinaryFile':
-        return this.writeBinaryFile(<IWriteBinaryFileRequestMessage>msg);
+        return this.writeBinaryFile(<IWriteBinaryFileRequestMessage>msg, reply);
       case 'readTextFile':
         return this.readTextFile(<IReadTextFileRequestMessage>msg, reply);
       case 'readBinaryFile':
@@ -273,9 +326,7 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
     }
   }
 
-  private onMessage(ev: MessageEvent) {
-    const msg = <IRequestMessage>ev.data;
-    const reply = (msg: any, transfer: Transferable[] = []) => postMessage(msg, ev.origin, transfer);
+  private onMessage(msg: any, reply: IReplyer) {
     if (!msg.type || !msg.key) {
       console.log('no message type or key given');
     }
