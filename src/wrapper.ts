@@ -142,7 +142,7 @@ export interface IAsyncEMWWrapper<T = {}> extends IAsyncEMWWrapperBase<T> {
   sync(): Promise<ISyncEMWWrapper<T>>;
 
   createWorker(adapter?: IMessageAdapter): ModuleWorker<T>;
-  createWorkerClient(worker: string | IWorkerLike | URL): IEMWWorkerClient<T>;
+  createWorkerClient(worker: IWorkerLike): IEMWWorkerClient<T>;
 }
 
 export interface IAsyncEMWMainWrapper<T = {}> extends IAsyncEMWWrapperBase<T>, IEMWMainPromise {
@@ -152,7 +152,7 @@ export interface IAsyncEMWMainWrapper<T = {}> extends IAsyncEMWWrapperBase<T>, I
   sync(): Promise<ISyncEMWWrapper<T> & IEMWMain>;
 
   createWorker(adapter?: IMessageAdapter): ModuleWorker<T>;
-  createWorkerClient(worker: string | IWorkerLike | URL): IEMWWorkerClient<T> & IEMWMainPromise;
+  createWorkerClient(worker: IWorkerLike): IEMWWorkerClient<T> & IEMWMainPromise;
 }
 
 declare type IModuleLike<T> = PromiseLike<T | {default: T}> | T | {default: T};
@@ -465,7 +465,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     return new ModuleWorker<T>(this, adapter);
   }
 
-  createWorkerClient(worker: string | IWorkerLike | URL) {
+  createWorkerClient(worker: IWorkerLike) {
     return new ModuleWorkerClient<T>(worker, this.options);
   }
 }

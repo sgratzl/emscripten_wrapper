@@ -64,8 +64,6 @@ export class ModuleWorkerClient<T = {}> extends EventEmitter implements IEMWWork
   readonly fn: Promisified<T>;
   readonly environmentVariables: {[key: string]: string};
 
-  protected readonly worker: IWorkerLike;
-
   readonly simpleFileSystem: ISimpleFS;
 
   readonly stdout = new SimpleOutStream();
@@ -74,9 +72,8 @@ export class ModuleWorkerClient<T = {}> extends EventEmitter implements IEMWWork
 
   private keyCounter: number = 0;
 
-  constructor(worker: string | URL | IWorkerLike, options: Partial<IEMWOptions> = {}) {
+  constructor(protected readonly worker: IWorkerLike, options: Partial<IEMWOptions> = {}) {
     super();
-    this.worker = typeof worker === 'string' || worker instanceof URL ? new Worker(worker) : worker;
     this.worker.addEventListener('message', this.onMessage.bind(this));
 
     this.on('message', (msg: IReplyMessage) => {
