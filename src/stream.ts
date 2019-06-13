@@ -42,6 +42,7 @@ export class SimpleInStream extends EventEmitter implements IEMWInStream {
 
   clear() {
     this.buffer = '';
+    this.emit('clear');
   }
 
   read() {

@@ -1,39 +1,10 @@
 import {EventEmitter} from 'events';
 import {IEMScriptModule, EMScriptFS, IModule, IModuleOptions} from './module';
 import {SimpleOutStream, SimpleInStream, IEMWInStream, IEMWOutStream} from './stream';
-import {ModuleWorker} from './worker';
+import {ModuleWorker} from './ModuleWorker';
+import {IEMWOptions, buildAsyncFunctions, buildSyncFunctions, Promisified} from './utils';
+import {ModuleWorkerClient, IEMWWorkerClient} from './ModuleWorkerClient';
 
-export interface IFunctionDeclaration {
-  /**
-   * defines the argument types, supported types are string and number, arrays have to be Uint8Typed Arrays to work
-   */
-  arguments: ('string' | 'number' | 'array')[];
-  /**
-   * defines the return type of this function
-   */
-  returnType: 'string' | 'number';
-}
-
-export interface IEMWOptions {
-  /**
-   * function defintions that will be available via `.fn`
-   */
-  functions: {[functionName: string]: IFunctionDeclaration};
-}
-
-
-export type PromiseFunction<T> =
-  T extends () => infer R ? () => Promise<R> :
-  T extends (arg1: infer A1) => infer R ? (arg1: A1) => Promise<R> :
-  T extends (arg1: infer A1, arg2: infer A2) => infer R ? (arg1: A1, arg2: A2) => Promise<R> :
-  T extends (arg1: infer A1, arg2: infer A2, arg3: infer A3) => infer R ? (arg1: A1, arg2: A2, arg3: A3) => Promise<R> :
-  T extends (arg1: infer A1, arg2: infer A2, arg3: infer A3, arg4: infer A4) => infer R ? (arg1: A1, arg2: A2, arg3: A3, arg4: A4) => Promise<R> :
-  T extends (...args: (infer A)[]) => infer R ? (...args: A[]) => Promise<R> :
-  never;
-
-export type Promisified<T> = {
-  [P in keyof T]: PromiseFunction<T[P]>;
-};
 
 export interface IEMWMainPromise {
   /**
@@ -115,6 +86,7 @@ export interface ISyncEMWWrapper<T> extends IEMWWrapper {
 
 export interface IAsyncEMWWrapperBase<T = {}> extends IEMWWrapper {
   readonly fileSystem: Promise<EMScriptFS>;
+
   /**
    * object of exposed functions
    */
@@ -166,6 +138,9 @@ export interface IAsyncEMWWrapper<T = {}> extends IAsyncEMWWrapperBase<T> {
    * returns a sync version of this wrapper that was resolved then the module is ready
    */
   sync(): Promise<ISyncEMWWrapper<T>>;
+
+  createWorker(): ModuleWorker<T>;
+  createWorkerClient(worker: string | Worker | URL): IEMWWorkerClient<T>;
 }
 
 export interface IAsyncEMWMainWrapper<T = {}> extends IAsyncEMWWrapperBase<T>, IEMWMainPromise {
@@ -173,22 +148,9 @@ export interface IAsyncEMWMainWrapper<T = {}> extends IAsyncEMWWrapperBase<T>, I
    * returns a sync version of this wrapper that was resolved then the module is ready
    */
   sync(): Promise<ISyncEMWWrapper<T> & IEMWMain>;
-}
 
-function buildAsyncFunctions<T>(that: {sync(): Promise<ISyncEMWWrapper<T>>}, functions: {[functioName: string]: IFunctionDeclaration} = {}): Promisified<T> {
-  const obj: any = {};
-  Object.keys(functions).forEach((k) => {
-    obj[k] = (...args: any[]) => that.sync().then((mod) => (<any>mod.fn)[k](...args));
-  });
-  return obj;
-}
-
-function buildSyncFunctions<T>(mod: IModule, functions: {[functioName: string]: IFunctionDeclaration} = {}): T {
-  const obj: any = {};
-  Object.entries(functions).forEach(([k, v]) => {
-    obj[k] = mod.cwrap(k, v.returnType, v.arguments);
-  });
-  return obj;
+  createWorker(): ModuleWorker<T>;
+  createWorkerClient(worker: string | Worker | URL): IEMWWorkerClient<T> & IEMWMainPromise;
 }
 
 declare type IModuleLike<T> = PromiseLike<T | {default: T}> | T | {default: T};
@@ -453,8 +415,12 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
 
   // TODO if there is an exception in ccall and a converter was used (array or string) stackRestore won't be called
 
-  createWorkerAdapter() {
+  createWorker(): ModuleWorker<T> {
     return new ModuleWorker<T>(this);
+  }
+
+  createWorkerClient(worker: string | Worker | URL) {
+    return new ModuleWorkerClient<T>(worker, this.options);
   }
 }
 

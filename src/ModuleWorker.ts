@@ -1,4 +1,5 @@
 import {IAsyncEMWWrapper, ISyncEMWWrapper} from './wrapper';
+import {ensureDir} from './utils';
 
 export interface IModuleMessage {
   key: string;
@@ -14,7 +15,6 @@ export interface IErrorReplyMessage extends IModuleMessage {
 export interface IMainRequestMessage extends IModuleMessage {
   type: 'main';
   args: string[];
-  stdin?: string;
 }
 
 export interface IMainReplyMessage extends IModuleMessage {
@@ -73,7 +73,7 @@ export interface IReadBinaryFileRequestMessage extends IModuleMessage {
 export interface IReadBinaryFileReplyMessage extends IModuleMessage {
   type: 'readBinaryFile';
   path: string;
-  content: ArrayBuffer;
+  content: ArrayBufferView;
 }
 
 export interface IStdOutReplyMessage extends IModuleMessage {
@@ -81,18 +81,49 @@ export interface IStdOutReplyMessage extends IModuleMessage {
   chunk: string;
 }
 
+export interface IStdInRequestMessage extends IModuleMessage {
+  type: 'stdin';
+  chunk: string;
+}
+
+export interface IClearStdInRequestMessage extends IModuleMessage {
+  type: 'stdinClear';
+}
+
 export interface IStdErrReplyMessage extends IModuleMessage {
   type: 'stderr';
   chunk: string;
 }
 
-export declare type IRequestMessage = IMainRequestMessage | IFunctionRequestMessage | ISetEnvironmentVariableRequestMessage | IWriteTextFileRequestMessage | IWriteBinaryFileRequestMessage | IReadTextFileRequestMessage | IReadBinaryFileRequestMessage;
-export declare type IReplyMessage = IErrorReplyMessage | IFunctionReplyMessage | IStdOutReplyMessage | IStdErrReplyMessage | IMainReplyMessage | IReadTextFileReplyMessage | IReadBinaryFileReplyMessage;
+export interface IReadyReplyMessage extends IModuleMessage {
+  type: 'ready';
+}
 
-export declare type IReplyer = (msg: IModuleMessage & {[key: string]: any}) => void;
+export interface IExitReplyMessage extends IModuleMessage {
+  type: 'exit';
+  code: number;
+}
+
+export interface IQuitReplyMessage extends IModuleMessage {
+  type: 'quit';
+  status: number;
+}
+
+export interface IEnsureDirRequestMessage extends IModuleMessage {
+  type: 'ensureDir';
+  path: string;
+}
+
+export declare type IRequestMessage = IStdInRequestMessage | IClearStdInRequestMessage | IEnsureDirRequestMessage | IMainRequestMessage | IFunctionRequestMessage | ISetEnvironmentVariableRequestMessage | IWriteTextFileRequestMessage | IWriteBinaryFileRequestMessage | IReadTextFileRequestMessage | IReadBinaryFileRequestMessage;
+export declare type IReplyMessage = IReadyReplyMessage | IExitReplyMessage | IQuitReplyMessage | IErrorReplyMessage | IFunctionReplyMessage | IStdOutReplyMessage | IStdErrReplyMessage | IMainReplyMessage | IReadTextFileReplyMessage | IReadBinaryFileReplyMessage;
+
+export declare type IReplyer = (msg: IModuleMessage & {[key: string]: any}, transfer?: Transferable[]) => void;
 
 export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWrapper<FN>> {
   constructor(protected readonly module: T) {
+    this.module.on('ready', () => postMessage(<IReadyReplyMessage>{key: '', type: 'ready'}, '*'));
+    this.module.on('exit', (code) => postMessage(<IExitReplyMessage>{key: '', type: 'exit', code}, '*'));
+    this.module.on('quit', (status) => postMessage(<IQuitReplyMessage>{key: '', type: 'quit', status}, '*'));
     // start loading
     this.module.sync();
 
@@ -126,14 +157,12 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
       } finally {
         mod.stdout.off('data', stdoutListener);
         mod.stderr.off('data', stderrListener);
-        mod.stdin.clear();
       }
     });
   }
 
   private main(msg: IMainRequestMessage, reply: IReplyer) {
     this.runInModule(msg, (mod, out) => {
-      mod.stdin.push(msg.stdin || '');
       const exitCode = (<any>mod).main(msg.args);
       const {stdout, stderr} = out();
       reply({
@@ -172,12 +201,24 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
     this.module.environmentVariables[msg.name] = msg.value;
   }
 
+  private stdin(msg: IStdInRequestMessage) {
+    this.module.sync().then((m) => m.stdin.push(msg.chunk));
+  }
+
+  private stdinClear(_msg: IClearStdInRequestMessage) {
+    this.module.sync().then((m) => m.stdin.clear());
+  }
+
   private writeTextFile(msg: IWriteTextFileRequestMessage) {
     this.module.fileSystem.then((fs) => fs.writeFile(msg.path, msg.content, {encoding: 'utf8', flags: 'w'}));
   }
 
   private writeBinaryFile(msg: IWriteBinaryFileRequestMessage) {
     this.module.fileSystem.then((fs) => fs.writeFile(msg.path, msg.content));
+  }
+
+  private ensureDir(msg: IEnsureDirRequestMessage) {
+    this.module.fileSystem.then((fs) => ensureDir(fs, msg.path));
   }
 
   private readTextFile(msg: IReadTextFileRequestMessage, reply: IReplyer) {
@@ -200,7 +241,7 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
         type: 'readBinaryFile',
         path: msg.path,
         content
-      });
+      }, [content]);
     });
   }
 
@@ -210,8 +251,14 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
         return this.main(<IMainRequestMessage>msg, reply);
       case 'fn':
         return this.fn(<IFunctionRequestMessage>msg, reply);
+      case 'stdin':
+        return this.stdin(<IStdInRequestMessage>msg);
+      case 'stdinClear':
+        return this.stdinClear(<IClearStdInRequestMessage>msg);
       case 'setEnv':
         return this.setEnv(<ISetEnvironmentVariableRequestMessage>msg);
+      case 'ensureDir':
+        return this.ensureDir(<IEnsureDirRequestMessage>msg);
       case 'writeTextFile':
         return this.writeTextFile(<IWriteTextFileRequestMessage>msg);
       case 'writeBinaryFile':
@@ -228,7 +275,7 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
 
   private onMessage(ev: MessageEvent) {
     const msg = <IRequestMessage>ev.data;
-    const reply = (msg: any) => postMessage(msg, ev.origin);
+    const reply = (msg: any, transfer: Transferable[] = []) => postMessage(msg, ev.origin, transfer);
     if (!msg.type || !msg.key) {
       console.log('no message type or key given');
     }
