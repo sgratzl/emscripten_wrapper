@@ -2,7 +2,7 @@ import {EventEmitter} from 'events';
 import {IEMScriptModule, EMScriptFS, IModule, IModuleOptions} from './module';
 import {SimpleOutStream, SimpleInStream, IEMWInStream, IEMWOutStream} from './stream';
 import {ModuleWorker, IMessageAdapter} from './ModuleWorker';
-import {IEMWOptions, buildAsyncFunctions, buildSyncFunctions, Promisified} from './utils';
+import {IEMWOptions, buildAsyncFunctions, buildSyncFunctions, Promisified, ISimpleFS, ensureDir} from './utils';
 import {ModuleWorkerClient, IEMWWorkerClient, IWorkerLike} from './ModuleWorkerClient';
 
 
@@ -78,6 +78,7 @@ export interface IEMWWrapper {
 
 export interface ISyncEMWWrapper<T> extends IEMWWrapper {
   readonly fileSystem: EMScriptFS;
+  readonly simpleFileSystem: ISimpleFS;
   /**
    * object of exposed functions
    */
@@ -86,6 +87,7 @@ export interface ISyncEMWWrapper<T> extends IEMWWrapper {
 
 export interface IAsyncEMWWrapperBase<T = {}> extends IEMWWrapper {
   readonly fileSystem: Promise<EMScriptFS>;
+  readonly simpleFileSystem: ISimpleFS;
 
   /**
    * object of exposed functions
@@ -196,9 +198,33 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
   readonly fn: Promisified<T>;
   environmentVariables: {[key: string]: string} = {};
 
+
+  readonly simpleFileSystem: ISimpleFS;
+
   constructor(private readonly _loaders: ILoaders, private readonly options: Partial<IEMWOptions> & {main?: false} = {}) {
     super();
     this.fn = buildAsyncFunctions<T>(this, options.functions);
+
+    this.simpleFileSystem = {
+      ensureDir: (dir) => this.fileSystem.then((fs) => {
+        ensureDir(fs, dir);
+        return <true>true;
+      }),
+      readBinaryFile: (path) => this.fileSystem.then((fs) => {
+        return fs.readFile(path);
+      }),
+      readTextFile: (path) => this.fileSystem.then((fs) => {
+        return fs.readFile(path, {encoding: 'utf8', flags: 'r'});
+      }),
+      writeTextFile: (path, content) => this.fileSystem.then((fs) => {
+        fs.writeFile(path, content, {encoding: 'utf8', flags: 'w'});
+        return <true>true;
+      }),
+      writeBinaryFile: (path, content) => this.fileSystem.then((fs) => {
+        fs.writeFile(path, content);
+        return <true>true;
+      })
+    };
   }
 
   private _load() {
@@ -388,7 +414,27 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
       stdout: this.stdout,
       main: (args?: string[]) => this._callMain(mod, args),
       run: (args?: string[]) => this._runMain(mod, args),
-      fn: buildSyncFunctions<T>(mod, this.options.functions)
+      fn: buildSyncFunctions<T>(mod, this.options.functions),
+      simpleFileSystem: {
+        ensureDir: (dir) => {
+          ensureDir(mod.FS, dir);
+          return Promise.resolve(<true>true);
+        },
+        readBinaryFile: (path) => {
+          return Promise.resolve(mod.FS.readFile(path));
+        },
+        readTextFile: (path) => {
+          return Promise.resolve(mod.FS.readFile(path, {encoding: 'utf8', flags: 'r'}));
+        },
+        writeTextFile: (path, content) => {
+          mod.FS.writeFile(path, content, {encoding: 'utf8', flags: 'w'});
+          return Promise.resolve(<true>true);
+        },
+        writeBinaryFile: (path, content) => {
+          mod.FS.writeFile(path, content);
+          return Promise.resolve(<true>true);
+        }
+      }
     };
   }
 

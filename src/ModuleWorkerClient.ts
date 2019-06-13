@@ -1,19 +1,8 @@
 import {EventEmitter} from 'events';
 import {IFunctionReplyMessage, IMainReplyMessage, IModuleMessage, IReadBinaryFileReplyMessage, IReadTextFileReplyMessage, IReplyMessage, ISetEnvironmentVariableRequestMessage} from './ModuleWorker';
 import {SimpleInStream, SimpleOutStream} from './stream';
-import {IEMWOptions, Promisified} from './utils';
+import {IEMWOptions, Promisified, ISimpleFS} from './utils';
 import {IEMWMainPromise, IEMWWrapper} from './wrapper';
-
-
-export interface ISimpleFS {
-  ensureDir(dir: string): Promise<true>;
-
-  writeTextFile(path: string, content: string): Promise<true>;
-  writeBinaryFile(path: string, content: ArrayBufferView): Promise<true>;
-
-  readTextFile(path: string): Promise<string>;
-  readBinaryFile(path: string): Promise<ArrayBufferView>;
-}
 
 
 export interface IEMWWorkerClient<T = {}> extends IEMWWrapper {

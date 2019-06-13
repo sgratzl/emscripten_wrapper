@@ -34,6 +34,17 @@ export type Promisified<T> = {
 };
 
 
+export interface ISimpleFS {
+  ensureDir(dir: string): Promise<true>;
+
+  writeTextFile(path: string, content: string): Promise<true>;
+  writeBinaryFile(path: string, content: ArrayBufferView): Promise<true>;
+
+  readTextFile(path: string): Promise<string>;
+  readBinaryFile(path: string): Promise<ArrayBufferView>;
+}
+
+
 export function ensureDir(fileSystem: {mkdir(name: string): void}, dir: string) {
   try {
     fileSystem.mkdir(dir);
