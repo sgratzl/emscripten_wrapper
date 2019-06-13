@@ -1,5 +1,5 @@
 import {EventEmitter} from 'events';
-import {IEMScriptModule, EMScriptFS, IModule} from './module';
+import {IEMScriptModule, EMScriptFS, IModule, IModuleOptions} from './module';
 import {SimpleOutStream, SimpleInStream, IEMWInStream, IEMWOutStream} from './stream';
 
 export * from './module';
@@ -194,6 +194,37 @@ function buildSyncFunctions<T>(mod: IModule, functions: {[functioName: string]: 
   return obj;
 }
 
+declare type IModuleLike<T> = PromiseLike<T | {default: T}> | T | {default: T};
+declare type IEMScriptModuleLike = IModuleLike<IEMScriptModule>;
+
+export interface ILoaders {
+  module(): IEMScriptModuleLike;
+  wasm?(): IModuleLike<string | ArrayBuffer>;
+  mem?(): IModuleLike<string | ArrayBuffer>;
+  data?(): IModuleLike<string | ArrayBuffer>;
+}
+
+function loadHelper<T>(fn?: (() => IModuleLike<T>)): Promise<T | null> {
+  if (!fn) {
+    return Promise.resolve(null);
+  }
+  return Promise.resolve(fn()).then((modOrDefault) => {
+    if (modOrDefault && typeof (<{default: T}>modOrDefault).default !== 'undefined') {
+      return (<{default: T}>modOrDefault).default;
+    }
+    return <T>modOrDefault;
+  });
+}
+
+function string2arrayBuffer(str: string) {
+  const buf = new ArrayBuffer(str.length * 2); // 2 bytes for each char
+  const bufView = new Uint16Array(buf);
+  for (let i = 0; i < str.length; i++) {
+    bufView[i] = str.charCodeAt(i);
+  }
+  return buf;
+}
+
 class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T> {
   readonly stdout = new SimpleOutStream();
   readonly stderr = new SimpleOutStream();
@@ -206,7 +237,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
   readonly fn: Promisified<T>;
   environmentVariables: {[key: string]: string} = {};
 
-  constructor(private readonly _loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}> | IEMScriptModule | {default: IEMScriptModule}, private readonly options: Partial<IEMWOptions> & {main?: false} = {}) {
+  constructor(private readonly _loaders: ILoaders, private readonly options: Partial<IEMWOptions> & {main?: false} = {}) {
     super();
     this.fn = buildAsyncFunctions<T>(this, options.functions);
   }
@@ -218,11 +249,8 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     let readyResolve: (() => void) | null = null;
     this.readySemaphore = new Promise((resolve) => readyResolve = resolve);
 
-    this.module = Promise.resolve(this._loader()).then((loaded) => {
-      // export fix
-      const mod = (typeof (<{default: IEMScriptModule}>loaded).default === 'function') ? (<{default: IEMScriptModule}>loaded).default : <IEMScriptModule>loaded;
-
-      const m = mod({
+    this.module = Promise.all([loadHelper(this._loaders.module), loadHelper(this._loaders.wasm), loadHelper(this._loaders.mem), loadHelper(this._loaders.data)]).then(([mod, wasm, mem, data]) => {
+      const modOptions: Partial<IModuleOptions> = {
         // readd missing new line
         print: (chunk) => this.stdout.push(`${chunk}\n`),
         printErr: (chunk) => this.stderr.push(`${chunk}\n`),
@@ -235,7 +263,53 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
         quit: (status) => {
           this.emit('quit', status);
         }
-      });
+      };
+
+      console.log(wasm, data, mem);
+      const toLocate: {suffix: string, location: string}[] = [];
+
+      // WASM
+      if (wasm instanceof ArrayBuffer || (typeof wasm === 'string' && !wasm.endsWith('.wasm'))) {
+        // array buffer or a string which is an arraybuffer
+        if (typeof wasm === 'string') {
+          wasm = string2arrayBuffer(wasm);
+        }
+        modOptions.wasmBinary = wasm;
+      } else if (typeof wasm === 'string') {
+        // location
+        toLocate.push({suffix: '.wasm', location: wasm});
+      }
+
+      // DATA
+      if (data instanceof ArrayBuffer || (typeof data === 'string' && !data.endsWith('.data'))) {
+        // array buffer or a string which is an arraybuffer
+        const d = (typeof data === 'string') ? string2arrayBuffer(data) : data;
+        modOptions.getPreloadedPackage = () => d;
+      } else if (typeof data === 'string') {
+        // location
+        toLocate.push({suffix: '.data', location: data});
+      }
+
+      // MemoryDump
+      if (mem instanceof ArrayBuffer || (typeof mem === 'string' && !mem.endsWith('.mem'))) {
+        // array buffer or a string which is an arraybuffer
+        if (typeof mem === 'string') {
+          mem = string2arrayBuffer(mem);
+        }
+        modOptions.memoryInitializerRequest = {response: mem, status: 200};
+      } else if (typeof mem === 'string') {
+        // location
+        toLocate.push({suffix: '.mem', location: mem});
+      }
+
+      if (toLocate.length > 0) {
+        modOptions.locateFile = (name, prefix) => {
+          const entry = toLocate.find((d) => name.endsWith(d.suffix));
+          return entry ? entry.location : `${prefix || ''}${name}`;
+        };
+      }
+
+      const m = mod!(modOptions);
       // wrap module since it has a 'then' by itself and then the promise thinks it is another promise to wait for
       // however the then doesn't work properly
       return {mod: m};
@@ -383,16 +457,15 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
   // TODO if there is an exception in ccall and a converter was used (array or string) stackRestore won't be called
 }
 
-
 /**
  * creates an easy to use wrapper around an emscripten module
  * @param loader loader function to return the emscripten module
  * @param options additional options foremost which functions and whether a main function is available
  */
-export function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}> | IEMScriptModule | {default: IEMScriptModule}, options?: Partial<IEMWOptions> & {main: false}): IAsyncEMWWrapper<T>;
-export function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}> | IEMScriptModule | {default: IEMScriptModule}, options?: Partial<IEMWOptions>): IAsyncEMWMainWrapper<T>;
-export function createWrapper<T = {}>(loader: () => Promise<IEMScriptModule | {default: IEMScriptModule}> | IEMScriptModule | {default: IEMScriptModule}, options?: Partial<IEMWOptions> & {main?: false}): IAsyncEMWMainWrapper<T> {
-  return new EMScriptWrapper<T>(loader, options);
+export function createWrapper<T = {}>(loaders: (() => IEMScriptModuleLike) | ILoaders, options?: Partial<IEMWOptions> & {main: false}): IAsyncEMWWrapper<T>;
+export function createWrapper<T = {}>(loaders: (() => IEMScriptModuleLike) | ILoaders, options?: Partial<IEMWOptions>): IAsyncEMWMainWrapper<T>;
+export function createWrapper<T = {}>(loaders: (() => IEMScriptModuleLike) | ILoaders, options?: Partial<IEMWOptions> & {main?: false}): IAsyncEMWMainWrapper<T> {
+  return new EMScriptWrapper<T>(typeof loaders === 'function' ? {module: loaders} : loaders, options);
 }
 
 export default createWrapper;

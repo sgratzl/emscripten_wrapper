@@ -46,7 +46,24 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 var __1 = __importDefault(require("../"));
-var wrapper = __1.default(function () { return Promise.resolve().then(function () { return __importStar(require('./helloworld')); }); }, {
+function importNode(file) {
+    return Promise.resolve().then(function () { return __importStar(require('fs')); }).then(function (fs) {
+        return new Promise(function (resolve, reject) {
+            fs.readFile(file, function (err, data) {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                resolve(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
+            });
+        });
+    });
+}
+var wrapper = __1.default({
+    module: function () { return Promise.resolve().then(function () { return __importStar(require('./helloworld')); }); },
+    data: function () { return importNode('./helloworld.data'); },
+    wasm: function () { return importNode('./helloworld.wasm'); }
+}, {
     functions: {
         add_values: {
             arguments: ['number', 'number'],
@@ -54,7 +71,10 @@ var wrapper = __1.default(function () { return Promise.resolve().then(function (
         }
     }
 });
-var wrapper_asm = __1.default(function () { return Promise.resolve().then(function () { return __importStar(require('./helloworld_asm')); }); }, {
+var wrapperASM = __1.default({
+    module: function () { return Promise.resolve().then(function () { return __importStar(require('./helloworld_asm')); }); },
+    data: function () { return importNode('./helloworld.data'); }
+}, {
     functions: {
         add_values: {
             arguments: ['number', 'number'],
@@ -94,7 +114,7 @@ function main() {
                 case 1:
                     _a.sent();
                     console.log('asm');
-                    return [4 /*yield*/, run(wrapper_asm)];
+                    return [4 /*yield*/, run(wrapperASM)];
                 case 2:
                     _a.sent();
                     return [2 /*return*/];

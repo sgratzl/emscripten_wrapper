@@ -32,6 +32,9 @@ export interface IModuleOptions {
   onRuntimeInitialized(): void;
 
   setStatus(status: string): void;
+
+  wasmBinary?: ArrayBuffer;
+  memoryInitializerRequest?: {response: ArrayBuffer, status: number};
 }
 
 export interface IModule {

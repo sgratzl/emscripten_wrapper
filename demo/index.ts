@@ -8,7 +8,25 @@ export interface IHelloWorldModule extends IAsyncEMWMainWrapper<IHelloWorldFunct
 
 }
 
-const wrapper: IHelloWorldModule = createWrapper<IHelloWorldFunctions>(() => import('./helloworld'), {
+function importNode(file: string) {
+  return import('fs').then((fs) => {
+    return new Promise<any>((resolve, reject) => {
+      fs.readFile(file, (err, data) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength));
+      });
+    });
+  });
+}
+
+const wrapper: IHelloWorldModule = createWrapper<IHelloWorldFunctions>({
+  module: () => import('./helloworld'),
+  data: () => importNode('./helloworld.data'),
+  wasm: () => importNode('./helloworld.wasm')
+}, {
   functions: {
     add_values: {
       arguments: ['number', 'number'],
@@ -17,7 +35,10 @@ const wrapper: IHelloWorldModule = createWrapper<IHelloWorldFunctions>(() => imp
   }
 });
 
-const wrapperASM: IHelloWorldModule = createWrapper<IHelloWorldFunctions>(() => import('./helloworld_asm'), {
+const wrapperASM: IHelloWorldModule = createWrapper<IHelloWorldFunctions>({
+  module: () => import('./helloworld_asm'),
+  data: () => importNode('./helloworld.data')
+}, {
   functions: {
     add_values: {
       arguments: ['number', 'number'],
