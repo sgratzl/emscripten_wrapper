@@ -168,15 +168,16 @@ export class ModuleWorkerClient<T = {}> extends EventEmitter implements IEMWWork
     return this.run(args).then((r) => r.exitCode);
   }
 
-  run(args: string[] = []) {
+  run(args: string[] = [], stdin?: string) {
     return this.sendAndWait<IMainReplyMessage, {exitCode: number, stdout: string, stderr: string}>(
-      {type: 'main', args}, [],
-      (msg) => msg.type === 'main', (msg) => {
-      return {
-        exitCode: msg.exitCode,
-        stderr: msg.stderr,
-        stdout: msg.stdout
-      };
+      {type: 'run', args, stdin}, [],
+      (msg) => msg.type === 'run', (msg) => {
+        return {
+          error: msg.error,
+          exitCode: msg.exitCode,
+          stderr: msg.stderr,
+          stdout: msg.stdout
+        };
     });
   }
 

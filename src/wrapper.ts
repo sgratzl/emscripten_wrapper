@@ -17,7 +17,7 @@ export interface IEMWMainPromise {
    * similar to main but returns a status object including stdout, stderr, and the exitCode
    * @param args optional main arguments
    */
-  run(args?: string[]): Promise<{stdout: string, stderr: string, exitCode: number, error?: Error}>;
+  run(args?: string[], stdin?: string): Promise<{stdout: string, stderr: string, exitCode: number, error?: Error}>;
 }
 
 export interface IEMWMain {
@@ -31,7 +31,7 @@ export interface IEMWMain {
    * similar to main but returns a status object including stdout, stderr, and the exitCode
    * @param args optional main arguments
    */
-  run(args?: string[]): {stdout: string, stderr: string, exitCode: number, error?: Error};
+  run(args?: string[], stdin?: string): {stdout: string, stderr: string, exitCode: number, error?: Error};
 }
 
 export interface IEMWWrapper {
@@ -306,8 +306,8 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     return this.sync().then((mod) => mod.main(args));
   }
 
-  run(args?: string[]) {
-    return this.sync().then((mod) => mod.run(args));
+  run(args?: string[], stdin?: string) {
+    return this.sync().then((mod) => mod.run(args, stdin));
   }
 
   kill(signal?: string) {
@@ -339,7 +339,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     }
   }
 
-  private _runMain(mod: IModule, args?: string[]) {
+  private _runMain(mod: IModule, args?: string[], stdin?: string) {
     let statusCode = 0;
     let statusError: Error | null = null;
     let stdout = '';
@@ -358,6 +358,12 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
       stderr += chunk;
     };
     this.stderr.on('data', stderrListener);
+
+    if (stdin) {
+      this.stdin.clear();
+      this.stdin.push(stdin);
+    }
+
     try {
       mod.callMain(args || []);
     } catch (error) {
@@ -366,6 +372,9 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
       this.off('quit', quitListener);
       this.stdout.off('data', stdoutListener);
       this.stderr.off('data', stderrListener);
+      if (stdin) {
+        this.stdin.clear();
+      }
     }
     return {
       stdout,
@@ -413,7 +422,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
       stdin: this.stdin,
       stdout: this.stdout,
       main: (args?: string[]) => this._callMain(mod, args),
-      run: (args?: string[]) => this._runMain(mod, args),
+      run: (args?: string[], stdin?: string) => this._runMain(mod, args, stdin),
       fn: buildSyncFunctions<T>(mod, this.options.functions),
       simpleFileSystem: {
         ensureDir: (dir) => {

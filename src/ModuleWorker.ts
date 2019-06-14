@@ -1,4 +1,4 @@
-import {IAsyncEMWWrapper, ISyncEMWWrapper} from './wrapper';
+import {IAsyncEMWWrapper, ISyncEMWWrapper, IEMWMain} from './wrapper';
 import {ensureDir} from './utils';
 
 export interface IModuleMessage {
@@ -17,12 +17,14 @@ export interface IOkReplyMessage extends IModuleMessage {
 }
 
 export interface IMainRequestMessage extends IModuleMessage {
-  type: 'main';
-  args: string[];
+  type: 'run';
+  args?: string[];
+  stdin?: string;
 }
 
 export interface IMainReplyMessage extends IModuleMessage {
-  type: 'main';
+  type: 'run';
+  error?: Error;
   exitCode: number;
   stdout: string;
   stderr: string;
@@ -118,8 +120,18 @@ export interface IEnsureDirRequestMessage extends IModuleMessage {
   path: string;
 }
 
-export declare type IRequestMessage = IStdInRequestMessage | IClearStdInRequestMessage | IEnsureDirRequestMessage | IMainRequestMessage | IFunctionRequestMessage | ISetEnvironmentVariableRequestMessage | IWriteTextFileRequestMessage | IWriteBinaryFileRequestMessage | IReadTextFileRequestMessage | IReadBinaryFileRequestMessage;
-export declare type IReplyMessage = IOkReplyMessage | IReadyReplyMessage | IExitReplyMessage | IQuitReplyMessage | IErrorReplyMessage | IFunctionReplyMessage | IStdOutReplyMessage | IStdErrReplyMessage | IMainReplyMessage | IReadTextFileReplyMessage | IReadBinaryFileReplyMessage;
+export interface IBatchRequestMessage extends IModuleMessage {
+  type: 'batch';
+  messages: IRequestMessage[];
+}
+
+export interface IBatchReplyMessage extends IModuleMessage {
+  type: 'batch';
+  replies: IReplyMessage[];
+}
+
+export declare type IRequestMessage = IBatchRequestMessage | IStdInRequestMessage | IClearStdInRequestMessage | IEnsureDirRequestMessage | IMainRequestMessage | IFunctionRequestMessage | ISetEnvironmentVariableRequestMessage | IWriteTextFileRequestMessage | IWriteBinaryFileRequestMessage | IReadTextFileRequestMessage | IReadBinaryFileRequestMessage;
+export declare type IReplyMessage = IBatchReplyMessage | IOkReplyMessage | IReadyReplyMessage | IExitReplyMessage | IQuitReplyMessage | IErrorReplyMessage | IFunctionReplyMessage | IStdOutReplyMessage | IStdErrReplyMessage | IMainReplyMessage | IReadTextFileReplyMessage | IReadBinaryFileReplyMessage;
 
 export declare type IReplyer = (msg: IModuleMessage & {[key: string]: any}, transfer?: Transferable[]) => void;
 
@@ -149,53 +161,51 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
     adapter.addEventListener('message', this.onMessage.bind(this));
   }
 
-  protected async runInModule(msg: IModuleMessage, run: (mod: ISyncEMWWrapper<FN>, out: () => ({stdout: string, stderr: string})) => void, reply: IReplyer) {
-    this.module.sync().then((mod) => {
-      let stdout = '';
-      const stdoutListener = (chunk: string) => {
-        stdout += chunk;
-        reply({key: msg.key, type: 'stdout', chunk});
-      };
-      let stderr = '';
-      const stderrListener = (chunk: string) => {
-        stderr += chunk;
-        reply({key: msg.key, type: 'stderr', chunk});
-      };
-      try {
-        mod.stdout.on('data', stdoutListener);
-        mod.stderr.on('data', stderrListener);
-        run(mod, () => ({stdout, stderr}));
-      } catch (error) {
-        reply({
-          key: msg.key,
-          type: 'error',
-          error,
-          stdout,
-          stderr
-        });
-      } finally {
-        mod.stdout.off('data', stdoutListener);
-        mod.stderr.off('data', stderrListener);
-      }
-    });
-  }
-
-  private main(msg: IMainRequestMessage, reply: IReplyer) {
-    this.runInModule(msg, (mod, out) => {
-      const exitCode = (<any>mod).main(msg.args);
-      const {stdout, stderr} = out();
+  protected async streamOut(mod: ISyncEMWWrapper<FN>, msg: IModuleMessage, run: () => void, reply: IReplyer) {
+    let stdout = '';
+    const stdoutListener = (chunk: string) => {
+      stdout += chunk;
+      reply({key: msg.key, type: 'stdout', chunk});
+    };
+    let stderr = '';
+    const stderrListener = (chunk: string) => {
+      stderr += chunk;
+      reply({key: msg.key, type: 'stderr', chunk});
+    };
+    try {
+      mod.stdout.on('data', stdoutListener);
+      mod.stderr.on('data', stderrListener);
+      run();
+    } catch (error) {
       reply({
         key: msg.key,
-        type: 'main',
-        exitCode,
-        stderr,
-        stdout
+        type: 'error',
+        error,
+        stdout,
+        stderr
+      });
+    } finally {
+      mod.stdout.off('data', stdoutListener);
+      mod.stderr.off('data', stderrListener);
+    }
+  }
+
+  private run(mod: ISyncEMWWrapper<FN>, msg: IMainRequestMessage, reply: IReplyer) {
+    this.streamOut(mod, msg, () => {
+      const r = (<IEMWMain><unknown>mod).run(msg.args || [], msg.stdin);
+      reply({
+        key: msg.key,
+        type: 'run',
+        error: r.error,
+        exitCode: r.exitCode,
+        stderr: r.stderr,
+        stdout: r.stdout
       });
     }, reply);
   }
 
-  private fn(msg: IFunctionRequestMessage, reply: IReplyer) {
-    this.runInModule(msg, (mod) => {
+  private fn(mod: ISyncEMWWrapper<FN>, msg: IFunctionRequestMessage, reply: IReplyer) {
+    this.streamOut(mod, msg, () => {
       const fn = (<any>mod.fn)[msg.function];
       if (typeof fn !== 'function') {
         reply({
@@ -216,114 +226,111 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
     }, reply);
   }
 
-  private setEnv(msg: ISetEnvironmentVariableRequestMessage, reply: IReplyer) {
-    this.module.environmentVariables[msg.name] = msg.value;
-    reply({
+  private setEnv(mod: ISyncEMWWrapper<FN>, msg: ISetEnvironmentVariableRequestMessage, reply: IReplyer) {
+    mod.environmentVariables[msg.name] = msg.value;
+    reply(this.ok(msg));
+  }
+
+  private stdin(mod: ISyncEMWWrapper<FN>, msg: IStdInRequestMessage, reply: IReplyer) {
+    mod.stdin.push(msg.chunk);
+    reply(this.ok(msg));
+  }
+
+  protected ok(msg: IModuleMessage) {
+    return {
       key: msg.key,
       type: 'ok',
+    };
+  }
+
+  private stdinClear(mod: ISyncEMWWrapper<FN>, msg: IClearStdInRequestMessage, reply: IReplyer) {
+    mod.stdin.clear();
+    reply(this.ok(msg));
+  }
+
+  private writeTextFile(mod: ISyncEMWWrapper<FN>, msg: IWriteTextFileRequestMessage, reply: IReplyer) {
+    mod.fileSystem.writeFile(msg.path, msg.content, {encoding: 'utf8', flags: 'w'});
+    reply(this.ok(msg));
+  }
+
+  private writeBinaryFile(mod: ISyncEMWWrapper<FN>, msg: IWriteBinaryFileRequestMessage, reply: IReplyer) {
+    mod.fileSystem.writeFile(msg.path, msg.content);
+    reply(this.ok(msg));
+  }
+
+  private ensureDir(mod: ISyncEMWWrapper<FN>, msg: IEnsureDirRequestMessage, reply: IReplyer) {
+    ensureDir(mod.fileSystem, msg.path);
+    reply(this.ok(msg));
+  }
+
+  private readTextFile(mod: ISyncEMWWrapper<FN>, msg: IReadTextFileRequestMessage, reply: IReplyer) {
+    const content = mod.fileSystem.readFile(msg.path, {encoding: 'utf8', flags: 'r'});
+    reply({
+      key: msg.key,
+      type: 'readTextFile',
+      path: msg.path,
+      content
     });
   }
 
-  private stdin(msg: IStdInRequestMessage, reply: IReplyer) {
-    this.module.sync().then((m) => {
-      m.stdin.push(msg.chunk);
-      reply({
-        key: msg.key,
-        type: 'ok',
+  private readBinaryFile(mod: ISyncEMWWrapper<FN>, msg: IReadBinaryFileRequestMessage, reply: IReplyer) {
+    const content = mod.fileSystem.readFile(msg.path);
+    reply({
+      key: msg.key,
+      type: 'readBinaryFile',
+      path: msg.path,
+      content
+    }, [content]);
+  }
+
+  private batch(mod: ISyncEMWWrapper<FN>, msg: IBatchRequestMessage, reply: IReplyer) {
+    const replies: IReplyMessage[] = [];
+    const transfers: Transferable[] = [];
+    for (const sub of msg.messages) {
+      this.handleModuleMessage(mod, sub, (reply, t = []) => {
+        replies.push(<any>reply);
+        transfers.push(...t);
       });
+    }
+    reply({
+      key: msg.key,
+      type: 'batch',
+      replies
     });
   }
 
-  private stdinClear(msg: IClearStdInRequestMessage, reply: IReplyer) {
-    this.module.sync().then((m) => {
-      m.stdin.clear();
-      reply({
-        key: msg.key,
-        type: 'ok',
-      });
-    });
-  }
-
-  private writeTextFile(msg: IWriteTextFileRequestMessage, reply: IReplyer) {
-    this.module.fileSystem.then((fs) => {
-      fs.writeFile(msg.path, msg.content, {encoding: 'utf8', flags: 'w'});
-      reply({
-        key: msg.key,
-        type: 'ok',
-      });
-    });
-  }
-
-  private writeBinaryFile(msg: IWriteBinaryFileRequestMessage, reply: IReplyer) {
-    this.module.fileSystem.then((fs) => {
-      fs.writeFile(msg.path, msg.content);
-      reply({
-        key: msg.key,
-        type: 'ok',
-      });
-    });
-  }
-
-  private ensureDir(msg: IEnsureDirRequestMessage, reply: IReplyer) {
-    this.module.fileSystem.then((fs) => {
-      ensureDir(fs, msg.path);
-      reply({
-        key: msg.key,
-        type: 'ok',
-      });
-    });
-  }
-
-  private readTextFile(msg: IReadTextFileRequestMessage, reply: IReplyer) {
-    this.module.fileSystem.then((fs) => {
-      const content = fs.readFile(msg.path, {encoding: 'utf8', flags: 'r'});
-      reply({
-        key: msg.key,
-        type: 'readTextFile',
-        path: msg.path,
-        content
-      });
-    });
-  }
-
-  private readBinaryFile(msg: IReadBinaryFileRequestMessage, reply: IReplyer) {
-    this.module.fileSystem.then((fs) => {
-      const content = fs.readFile(msg.path);
-      reply({
-        key: msg.key,
-        type: 'readBinaryFile',
-        path: msg.path,
-        content
-      }, [content]);
-    });
-  }
-
-  protected handleMessage(msg: IRequestMessage, reply: IReplyer) {
+  protected handleModuleMessage(mod: ISyncEMWWrapper<FN>, msg: IRequestMessage, reply: IReplyer) {
     switch (msg.type || 'unknown') {
-      case 'main':
-        return this.main(<IMainRequestMessage>msg, reply);
+      case 'run':
+        return this.run(mod, <IMainRequestMessage>msg, reply);
       case 'fn':
-        return this.fn(<IFunctionRequestMessage>msg, reply);
+        return this.fn(mod, <IFunctionRequestMessage>msg, reply);
       case 'stdin':
-        return this.stdin(<IStdInRequestMessage>msg, reply);
+        return this.stdin(mod, <IStdInRequestMessage>msg, reply);
       case 'stdinClear':
-        return this.stdinClear(<IClearStdInRequestMessage>msg, reply);
+        return this.stdinClear(mod, <IClearStdInRequestMessage>msg, reply);
       case 'setEnv':
-        return this.setEnv(<ISetEnvironmentVariableRequestMessage>msg, reply);
+        return this.setEnv(mod, <ISetEnvironmentVariableRequestMessage>msg, reply);
       case 'ensureDir':
-        return this.ensureDir(<IEnsureDirRequestMessage>msg, reply);
+        return this.ensureDir(mod, <IEnsureDirRequestMessage>msg, reply);
       case 'writeTextFile':
-        return this.writeTextFile(<IWriteTextFileRequestMessage>msg, reply);
+        return this.writeTextFile(mod, <IWriteTextFileRequestMessage>msg, reply);
       case 'writeBinaryFile':
-        return this.writeBinaryFile(<IWriteBinaryFileRequestMessage>msg, reply);
+        return this.writeBinaryFile(mod, <IWriteBinaryFileRequestMessage>msg, reply);
       case 'readTextFile':
-        return this.readTextFile(<IReadTextFileRequestMessage>msg, reply);
+        return this.readTextFile(mod, <IReadTextFileRequestMessage>msg, reply);
       case 'readBinaryFile':
-        return this.readBinaryFile(<IReadBinaryFileRequestMessage>msg, reply);
+        return this.readBinaryFile(mod, <IReadBinaryFileRequestMessage>msg, reply);
+      case 'batch':
+        return this.batch(mod, <IBatchRequestMessage>msg, reply);
       default: {
         console.log('unknown message type', msg);
       }
     }
+  }
+
+  protected handleMessage(msg: IRequestMessage, reply: IReplyer) {
+    this.module.sync().then((mod) => this.handleModuleMessage(mod, msg, reply));
   }
 
   private onMessage(msg: any, reply: IReplyer) {
