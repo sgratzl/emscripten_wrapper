@@ -16,11 +16,14 @@ function filePackagerPatch_isNodeOrShell() {
     return ENVIRONMENT_IS_NODE || ENVIRONMENT_IS_SHELL;
 }
 
+if (typeof location === 'undefined') {
+  // create a fake location to overrule the file_packager
+  var location = {
+    pathname: '/'
+  };
+}
+
 if (filePackagerPatch_isNodeOrShell()) {
-    // create a fake location to overrule the file_packager
-    var location = {
-        pathname: '/'
-    };
     Module.getPreloadedPackage = Module.getPreloadedPackage || filePackagerPatch_getPreloadedPackageNode;
 } else {
   // need a hack to locate relative file in browser settings for the file packager
