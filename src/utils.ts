@@ -1,5 +1,3 @@
-import {IModule} from './module';
-
 
 export interface IFunctionDeclaration {
   /**
@@ -51,21 +49,4 @@ export function ensureDir(fileSystem: {mkdir(name: string): void}, dir: string) 
   } catch {
     // ignore
   }
-}
-
-
-export function buildAsyncFunctions<T>(that: {sync(): Promise<{fn: any}>}, functions: {[functioName: string]: IFunctionDeclaration} = {}): Promisified<T> {
-  const obj: any = {};
-  Object.keys(functions).forEach((k) => {
-    obj[k] = (...args: any[]) => that.sync().then((mod) => mod.fn[k](...args));
-  });
-  return obj;
-}
-
-export function buildSyncFunctions<T>(mod: IModule, functions: {[functioName: string]: IFunctionDeclaration} = {}): T {
-  const obj: any = {};
-  Object.entries(functions).forEach(([k, v]) => {
-    obj[k] = mod.cwrap(k, v.returnType, v.arguments);
-  });
-  return obj;
 }

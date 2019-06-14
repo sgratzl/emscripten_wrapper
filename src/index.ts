@@ -4,3 +4,4 @@ export * from './wrapper';
 export {default} from './wrapper';
 export * from './ModuleWorker';
 export * from './ModuleWorkerClient';
+export * from './utils';

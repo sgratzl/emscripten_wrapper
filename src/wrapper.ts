@@ -2,9 +2,15 @@ import {EventEmitter} from 'events';
 import {IEMScriptModule, EMScriptFS, IModule, IModuleOptions} from './module';
 import {SimpleOutStream, SimpleInStream, IEMWInStream, IEMWOutStream} from './stream';
 import {ModuleWorker, IMessageAdapter} from './ModuleWorker';
-import {IEMWOptions, buildAsyncFunctions, buildSyncFunctions, Promisified, ISimpleFS, ensureDir} from './utils';
+import {IEMWOptions, Promisified, ISimpleFS, ensureDir, IFunctionDeclaration} from './utils';
 import {ModuleWorkerClient, IEMWWorkerClient, IWorkerLike} from './ModuleWorkerClient';
 
+export interface IRunResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+  error?: Error;
+}
 
 export interface IEMWMainPromise {
   /**
@@ -17,7 +23,7 @@ export interface IEMWMainPromise {
    * similar to main but returns a status object including stdout, stderr, and the exitCode
    * @param args optional main arguments
    */
-  run(args?: string[], stdin?: string): Promise<{stdout: string, stderr: string, exitCode: number, error?: Error}>;
+  run(args?: string[], stdin?: string): Promise<IRunResult>;
 }
 
 export interface IEMWMain {
@@ -31,7 +37,7 @@ export interface IEMWMain {
    * similar to main but returns a status object including stdout, stderr, and the exitCode
    * @param args optional main arguments
    */
-  run(args?: string[], stdin?: string): {stdout: string, stderr: string, exitCode: number, error?: Error};
+  run(args?: string[], stdin?: string): IRunResult;
 }
 
 export interface IEMWWrapper {
@@ -185,6 +191,23 @@ function string2arrayBuffer(str: string) {
   }
   return buf;
 }
+
+function buildAsyncFunctions<T>(that: {sync(): Promise<{fn: any}>}, functions: {[functioName: string]: IFunctionDeclaration} = {}): Promisified<T> {
+  const obj: any = {};
+  Object.keys(functions).forEach((k) => {
+    obj[k] = (...args: any[]) => that.sync().then((mod) => mod.fn[k](...args));
+  });
+  return obj;
+}
+
+function buildSyncFunctions<T>(mod: IModule, functions: {[functioName: string]: IFunctionDeclaration} = {}): T {
+  const obj: any = {};
+  Object.entries(functions).forEach(([k, v]) => {
+    obj[k] = mod.cwrap(k, v.returnType, v.arguments);
+  });
+  return obj;
+}
+
 
 class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T> {
   readonly stdout = new SimpleOutStream();
@@ -359,6 +382,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     };
     this.stderr.on('data', stderrListener);
 
+    console.log('_runMain', args, stdin);
     if (stdin) {
       this.stdin.clear();
       this.stdin.push(stdin);

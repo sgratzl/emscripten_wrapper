@@ -1,4 +1,4 @@
-import {IAsyncEMWWrapper, ISyncEMWWrapper, IEMWMain} from './wrapper';
+import {IAsyncEMWWrapper, ISyncEMWWrapper, IEMWMain, IRunResult} from './wrapper';
 import {ensureDir} from './utils';
 
 export interface IModuleMessage {
@@ -22,12 +22,8 @@ export interface IMainRequestMessage extends IModuleMessage {
   stdin?: string;
 }
 
-export interface IMainReplyMessage extends IModuleMessage {
+export interface IMainReplyMessage extends IModuleMessage, IRunResult {
   type: 'run';
-  error?: Error;
-  exitCode: number;
-  stdout: string;
-  stderr: string;
 }
 
 export interface IFunctionRequestMessage extends IModuleMessage {
@@ -192,6 +188,7 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
 
   private run(mod: ISyncEMWWrapper<FN>, msg: IMainRequestMessage, reply: IReplyer) {
     this.streamOut(mod, msg, () => {
+      console.log(msg);
       const r = (<IEMWMain><unknown>mod).run(msg.args || [], msg.stdin);
       reply({
         key: msg.key,

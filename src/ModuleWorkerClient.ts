@@ -2,7 +2,7 @@ import {EventEmitter} from 'events';
 import {IFunctionReplyMessage, IMainReplyMessage, IModuleMessage, IReadBinaryFileReplyMessage, IReadTextFileReplyMessage, IReplyMessage, ISetEnvironmentVariableRequestMessage} from './ModuleWorker';
 import {SimpleInStream, SimpleOutStream} from './stream';
 import {IEMWOptions, Promisified, ISimpleFS} from './utils';
-import {IEMWMainPromise, IEMWWrapper} from './wrapper';
+import {IEMWMainPromise, IEMWWrapper, IRunResult} from './wrapper';
 
 
 export interface IEMWWorkerClient<T = {}> extends IEMWWrapper {
@@ -169,7 +169,7 @@ export class ModuleWorkerClient<T = {}> extends EventEmitter implements IEMWWork
   }
 
   run(args: string[] = [], stdin?: string) {
-    return this.sendAndWait<IMainReplyMessage, {exitCode: number, stdout: string, stderr: string}>(
+    return this.sendAndWait<IMainReplyMessage, IRunResult>(
       {type: 'run', args, stdin}, [],
       (msg) => msg.type === 'run', (msg) => {
         return {
