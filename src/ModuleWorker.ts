@@ -129,10 +129,10 @@ export interface IMessageAdapter {
 }
 
 const WORKER_ADAPTER: IMessageAdapter = {
-  postMessage: (msg, transfer) => postMessage(msg, '*', transfer),
+  postMessage: (msg, transfer) => (<any>postMessage)(msg, transfer), // wrong typings
   addEventListener: (_type, listener) => {
     addEventListener('message', (msg: MessageEvent) => {
-      const reply = (msg: any, transfer: Transferable[] = []) => postMessage(msg, msg.origin, transfer);
+      const reply = (data: any, transfer: Transferable[] = []) => (<any>msg.source!).postMessage(data, transfer);
       listener(msg.data, reply);
     });
   }
