@@ -129,10 +129,10 @@ export interface IMessageAdapter {
 }
 
 const WORKER_ADAPTER: IMessageAdapter = {
-  postMessage: (<any>postMessage), // wrong typings
+  postMessage: (msg, transfer) => (<any>self.postMessage)(msg, transfer), // wrong typings
   addEventListener: (_type, listener) => {
     addEventListener('message', (msg: MessageEvent) => {
-      const reply = msg.source ? (<any>msg.source).postMessage.bind(msg.source) : (<any>postMessage);
+      const reply = (data: any, transfer: Transferable[] = []) => (<any>(msg.source || self)).postMessage(data, transfer);
       listener(msg.data, reply);
     });
   }
@@ -140,9 +140,9 @@ const WORKER_ADAPTER: IMessageAdapter = {
 
 export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWrapper<FN>> {
   constructor(protected readonly module: T, protected readonly adapter: IMessageAdapter = WORKER_ADAPTER) {
-    this.module.on('ready', () => adapter.postMessage(<IReadyReplyMessage>{key: '', type: 'ready'}));
-    this.module.on('exit', (code) => adapter.postMessage(<IExitReplyMessage>{key: '', type: 'exit', code}));
-    this.module.on('quit', (status) => adapter.postMessage(<IQuitReplyMessage>{key: '', type: 'quit', status}));
+    this.module.on('ready', () => adapter.postMessage(<IReadyReplyMessage>{key: '-1', type: 'ready'}));
+    this.module.on('exit', (code) => adapter.postMessage(<IExitReplyMessage>{key: '-1', type: 'exit', code}));
+    this.module.on('quit', (status) => adapter.postMessage(<IQuitReplyMessage>{key: '-1', type: 'quit', status}));
     // start loading
     this.module.sync();
 
