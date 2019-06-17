@@ -85,6 +85,7 @@ export interface IEMWWrapper {
 export interface ISyncEMWWrapper<T> extends IEMWWrapper {
   readonly fileSystem: EMScriptFS;
   readonly simpleFileSystem: ISimpleFS;
+  readonly module: IModule;
   /**
    * object of exposed functions
    */
@@ -94,6 +95,7 @@ export interface ISyncEMWWrapper<T> extends IEMWWrapper {
 export interface IAsyncEMWWrapperBase<T = {}> extends IEMWWrapper {
   readonly fileSystem: Promise<EMScriptFS>;
   readonly simpleFileSystem: ISimpleFS;
+  readonly module: Promise<IModule>;
 
   /**
    * object of exposed functions
@@ -214,7 +216,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
   readonly stderr = new SimpleOutStream();
   readonly stdin = new SimpleInStream();
 
-  private module: Promise<{mod: IModule}> | null = null;
+  private moduleLoader: Promise<{mod: IModule}> | null = null;
   private readySemaphore: Promise<void> | null = null;
   private _sync: Promise<ISyncEMWWrapper<T> & IEMWMain> | null = null;
 
@@ -251,13 +253,13 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
   }
 
   private _load() {
-    if (this.module) {
-      return this.module;
+    if (this.moduleLoader) {
+      return this.moduleLoader;
     }
     let readyResolve: (() => void) | null = null;
     this.readySemaphore = new Promise((resolve) => readyResolve = resolve);
 
-    this.module = Promise.all([loadHelper(this._loaders.module), loadHelper(this._loaders.wasm), loadHelper(this._loaders.mem), loadHelper(this._loaders.data)]).then(([mod, wasm, mem, data]) => {
+    this.moduleLoader = Promise.all([loadHelper(this._loaders.module), loadHelper(this._loaders.wasm), loadHelper(this._loaders.mem), loadHelper(this._loaders.data)]).then(([mod, wasm, mem, data]) => {
       const modOptions: Partial<IModuleOptions> = {
         // readd missing new line
         print: (chunk) => this.stdout.push(`${chunk}\n`),
@@ -322,7 +324,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
       // however the then doesn't work properly
       return {mod: m};
     });
-    return this.module;
+    return this.moduleLoader;
   }
 
   main(args?: string[]) {
@@ -339,6 +341,10 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
 
   get fileSystem() {
     return this._load().then((mod) => mod.mod.FS);
+  }
+
+  get module() {
+    return this._load().then((mod) => mod.mod);
   }
 
   private _callMain(mod: IModule, args?: string[]) {
@@ -382,7 +388,6 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     };
     this.stderr.on('data', stderrListener);
 
-    console.log('_runMain', args, stdin);
     if (stdin) {
       this.stdin.clear();
       this.stdin.push(stdin);
@@ -410,13 +415,15 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
 
   private module2wrapper(mod: IModule) {
     const that = this;
+    const environmentVariables = mod.ENV && typeof mod.ENV !== 'function' ? mod.ENV : {};
     // inject environment variables that where set before
-    Object.assign(mod.ENV, this.environmentVariables);
-    this.environmentVariables = mod.ENV;
+    Object.assign(environmentVariables, this.environmentVariables);
+    this.environmentVariables = environmentVariables;
 
     return <ISyncEMWWrapper<T> & IEMWMain>{
+      module: mod,
       fileSystem: mod.FS,
-      environmentVariables: mod.ENV,
+      environmentVariables,
       on(event: string, listener: (...args: any[]) => void) {
         that.on(event, listener); return this;
       },
