@@ -35,7 +35,7 @@ export interface IFunctionRequestMessage extends IModuleMessage {
 export interface IFunctionReplyMessage extends IModuleMessage {
   type: 'fn';
   function: string;
-  returnValue: (string | number | null);
+  returnValue: (string | number | boolean | null);
 }
 
 export interface ISetEnvironmentVariableRequestMessage extends IModuleMessage {
@@ -188,7 +188,6 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
 
   private run(mod: ISyncEMWWrapper<FN>, msg: IMainRequestMessage, reply: IReplyer) {
     this.streamOut(mod, msg, () => {
-      console.log(msg);
       const r = (<IEMWMain><unknown>mod).run(msg.args || [], msg.stdin);
       reply({
         key: msg.key,
