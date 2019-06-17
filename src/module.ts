@@ -21,7 +21,10 @@ export interface IModuleOptions {
   getPreloadedPackage(remotePackageName: string, remotePackageSize: number): ArrayBuffer | null;
   locateFile(url: string, prefix?: string): string;
 
-  stdin(): number | null;
+  /**
+   *
+   */
+  stdin(): number | null | undefined;
   stdout(char: number): void;
   stderr(char: number): void;
 
@@ -42,8 +45,12 @@ export interface IModule {
   cwrap(ident: string, returnType: 'string' | 'number' | null, argTypes: ('string' | 'number' | 'array')[]): Function;
   abort(what?: string): void;
   callMain(args: string[]): void;
-  stackSave(): number;
-  stackRestore(saveNumber: number): void;
+
+  /**
+   * reinits the standard io streams
+   * runs automatically before the first start
+   */
+  globalCtors?(): void;
 
   then(callback: (module: IModule) => void): this;
 

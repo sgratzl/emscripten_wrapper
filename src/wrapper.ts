@@ -223,6 +223,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
   readonly fn: Promisified<T>;
   environmentVariables: {[key: string]: string} = {};
 
+  private ranMainOnce: boolean = false;
 
   readonly simpleFileSystem: ISimpleFS;
 
@@ -356,6 +357,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     };
     this.on('quit', quitListener);
     try {
+      this.preMain(mod);
       mod.callMain(args || []);
 
       if (statusCode > 0 && statusError) {
@@ -366,6 +368,15 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     finally {
       this.off('quit', quitListener);
     }
+  }
+
+  private preMain(mod: IModule) {
+    // call to init the proper standard streams agains
+    if (this.ranMainOnce && mod.globalCtors) {
+      // globalctors: A demonstration of GCC Global Constructor: A function that is automatically called before main.
+      mod.globalCtors();
+    }
+    this.ranMainOnce = true;
   }
 
   private _runMain(mod: IModule, args?: string[], stdin?: string) {
@@ -394,6 +405,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
     }
 
     try {
+      this.preMain(mod);
       mod.callMain(args || []);
     } catch (error) {
       statusError = error;

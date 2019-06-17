@@ -92,6 +92,14 @@ export interface IClearStdInRequestMessage extends IModuleMessage {
   type: 'stdinClear';
 }
 
+export interface IReInRequestMessage extends IModuleMessage {
+  type: 'stdinClose';
+}
+
+export interface ICloseStdInRequestMessage extends IModuleMessage {
+  type: 'stdinClose';
+}
+
 export interface IStdErrReplyMessage extends IModuleMessage {
   type: 'stderr';
   chunk: string;
@@ -126,7 +134,7 @@ export interface IBatchReplyMessage extends IModuleMessage {
   replies: IReplyMessage[];
 }
 
-export declare type IRequestMessage = IBatchRequestMessage | IStdInRequestMessage | IClearStdInRequestMessage | IEnsureDirRequestMessage | IMainRequestMessage | IFunctionRequestMessage | ISetEnvironmentVariableRequestMessage | IWriteTextFileRequestMessage | IWriteBinaryFileRequestMessage | IReadTextFileRequestMessage | IReadBinaryFileRequestMessage;
+export declare type IRequestMessage = IBatchRequestMessage | IStdInRequestMessage | IClearStdInRequestMessage | ICloseStdInRequestMessage | IEnsureDirRequestMessage | IMainRequestMessage | IFunctionRequestMessage | ISetEnvironmentVariableRequestMessage | IWriteTextFileRequestMessage | IWriteBinaryFileRequestMessage | IReadTextFileRequestMessage | IReadBinaryFileRequestMessage;
 export declare type IReplyMessage = IBatchReplyMessage | IOkReplyMessage | IReadyReplyMessage | IExitReplyMessage | IQuitReplyMessage | IErrorReplyMessage | IFunctionReplyMessage | IStdOutReplyMessage | IStdErrReplyMessage | IMainReplyMessage | IReadTextFileReplyMessage | IReadBinaryFileReplyMessage;
 
 export declare type IReplyer = (msg: IModuleMessage & {[key: string]: any}, transfer?: Transferable[]) => void;
@@ -244,6 +252,11 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
     reply(this.ok(msg));
   }
 
+  private stdinClose(mod: ISyncEMWWrapper<FN>, msg: IClearStdInRequestMessage, reply: IReplyer) {
+    mod.stdin.close();
+    reply(this.ok(msg));
+  }
+
   private writeTextFile(mod: ISyncEMWWrapper<FN>, msg: IWriteTextFileRequestMessage, reply: IReplyer) {
     mod.fileSystem.writeFile(msg.path, msg.content, {encoding: 'utf8', flags: 'w'});
     reply(this.ok(msg));
@@ -305,6 +318,8 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
         return this.stdin(mod, <IStdInRequestMessage>msg, reply);
       case 'stdinClear':
         return this.stdinClear(mod, <IClearStdInRequestMessage>msg, reply);
+      case 'stdinClose':
+        return this.stdinClose(mod, <IClearStdInRequestMessage>msg, reply);
       case 'setEnv':
         return this.setEnv(mod, <ISetEnvironmentVariableRequestMessage>msg, reply);
       case 'ensureDir':

@@ -100,6 +100,7 @@ export class ModuleWorkerClient<T = {}> extends EventEmitter implements IEMWWork
     });
     this.stdin.on('data', (chunk) => this.postMessage({key: this.nextKey(), type: 'stdin', chunk}));
     this.stdin.on('clear', () => this.postMessage({key: this.nextKey(), type: 'stdinClear'}));
+    this.stdin.on('close', () => this.postMessage({key: this.nextKey(), type: 'stdinClose'}));
 
     const obj: any = {};
     Object.keys(options.functions || {}).forEach((k) => {
