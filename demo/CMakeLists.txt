@@ -31,3 +31,7 @@ if (DEFINED EMSCRIPTEN)
   set_target_properties(helloworld_asm PROPERTIES LINK_FLAGS " -std=c++11 -s WASM=0 -s FORCE_FILESYSTEM=1 -s MODULARIZE=1 -s EXTRA_EXPORTED_RUNTIME_METHODS=\"['cwrap', 'FS', 'ENV']\"")
   set_target_properties(helloworld_asm PROPERTIES LINK_FLAGS_RELEASE "-O2")
 endif()
+
+
+# add_executable(h2 h2.c)
+# set_target_properties(h2 PROPERTIES LINK_FLAGS "-s WASM=0 -s MODULARIZE=1 -s EXTRA_EXPORTED_RUNTIME_METHODS=\"['cwrap', 'FS', 'ENV']\"")

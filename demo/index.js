@@ -60,20 +60,9 @@ function importNode(file) {
     });
 }
 var wrapper = __1.default({
-    module: function () { return Promise.resolve().then(function () { return __importStar(require('./helloworld')); }); },
-    data: function () { return importNode('./helloworld.data'); },
-    wasm: function () { return importNode('./helloworld.wasm'); }
-}, {
-    functions: {
-        add_values: {
-            arguments: ['number', 'number'],
-            returnType: 'number'
-        }
-    }
-});
-var wrapperASM = __1.default({
     module: function () { return Promise.resolve().then(function () { return __importStar(require('./helloworld_asm')); }); },
-    data: function () { return importNode('./helloworld.data'); }
+    // data: function () { return importNode('./helloworld.data'); },
+    // wasm: function () { return importNode('./helloworld.wasm'); }
 }, {
     functions: {
         add_values: {
@@ -82,6 +71,17 @@ var wrapperASM = __1.default({
         }
     }
 });
+// const wrapperASM: IHelloWorldModule = createWrapper<IHelloWorldFunctions>({
+//   module: () => import('./helloworld_asm'),
+//   data: () => importNode('./helloworld.data')
+// }, {
+//   functions: {
+//     add_values: {
+//       arguments: ['number', 'number'],
+//       returnType: 'number'
+//     }
+//   }
+// });
 exports.default = wrapper;
 function run(w) {
     return __awaiter(this, void 0, void 0, function () {
@@ -89,16 +89,23 @@ function run(w) {
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
-                    w.stdout.on('data', function (c) { return console.log('stdout', c); });
-                    w.stderr.on('data', function (c) { return console.log('stderr', c); });
+                    w.stdout.on('data', function (c) { return console.log('stdout', c.trim()); });
+                    w.stderr.on('data', function (c) { return console.log('stderr', c.trim()); });
                     console.time('load');
                     return [4 /*yield*/, w.sync()];
                 case 1:
                     s = _a.sent();
                     console.timeEnd('load');
-                    console.time('run');
-                    console.log(s.main());
-                    console.timeEnd('run');
+                console.time('run');
+                console.log(s.run([], 'ABC\n'));
+                console.timeEnd('run');
+                // reset magic stream closed flags
+                s.module.globalCtors();
+                // RESET a magic flag produced by ___stdio_read
+                // s.module.HEAP32['1340'] = 9;
+                console.time('run2');
+                    console.log(s.run([], 'DEF\n'));
+                    console.timeEnd('run2');
                     return [2 /*return*/];
             }
         });
@@ -112,10 +119,6 @@ function main() {
                     console.log('wasm');
                     return [4 /*yield*/, run(wrapper)];
                 case 1:
-                    _a.sent();
-                    console.log('asm');
-                    return [4 /*yield*/, run(wrapperASM)];
-                case 2:
                     _a.sent();
                     return [2 /*return*/];
             }

@@ -45,11 +45,14 @@ function filePackagerPatch_isNodeOrShell() {
     return ENVIRONMENT_IS_NODE || ENVIRONMENT_IS_SHELL;
 }
 
+if (typeof location === 'undefined') {
+  // create a fake location to overrule the file_packager
+  var location = {
+    pathname: '/'
+  };
+}
+
 if (filePackagerPatch_isNodeOrShell()) {
-    // create a fake location to overrule the file_packager
-    var location = {
-        pathname: '/'
-    };
     Module.getPreloadedPackage = Module.getPreloadedPackage || filePackagerPatch_getPreloadedPackageNode;
 } else {
   // need a hack to locate relative file in browser settings for the file packager
@@ -1453,11 +1456,11 @@ function updateGlobalBufferViews() {
 
 
 var STATIC_BASE = 1024,
-    STACK_BASE = 23392,
+    STACK_BASE = 22608,
     STACKTOP = STACK_BASE,
-    STACK_MAX = 5266272,
-    DYNAMIC_BASE = 5266272,
-    DYNAMICTOP_PTR = 23360;
+    STACK_MAX = 5265488,
+    DYNAMIC_BASE = 5265488,
+    DYNAMICTOP_PTR = 22576;
 
 assert(STACK_BASE % 16 === 0, 'stack must start aligned');
 assert(DYNAMIC_BASE % 16 === 0, 'heap must start aligned');
@@ -1909,8 +1912,8 @@ Module['asm'] = function(global, env, providedBuffer) {
   ;
   // import table
   env['table'] = wasmTable = new WebAssembly.Table({
-    'initial': 8033,
-    'maximum': 8033,
+    'initial': 7334,
+    'maximum': 7334,
     'element': 'anyfunc'
   });
   // With the wasm backend __memory_base and __table_base and only needed for
@@ -1932,7 +1935,7 @@ var ASM_CONSTS = [];
 
 
 
-// STATICTOP = STATIC_BASE + 22368;
+// STATICTOP = STATIC_BASE + 21584;
 /* global initializers */  __ATINIT__.push({ func: function() { globalCtors() } });
 
 
@@ -1943,7 +1946,7 @@ var ASM_CONSTS = [];
 
 
 /* no memory initializer */
-var tempDoublePtr = 23376
+var tempDoublePtr = 22592
 assert(tempDoublePtr % 8 == 0);
 
 function copyTempFloat(ptr) { // functions, because inlining this code increases code size too much
@@ -1967,10 +1970,12 @@ function copyTempDouble(ptr) {
 // {{PRE_LIBRARY}}
 
 
-  function ___cxa_allocate_exception(size) {
-      return _malloc(size);
+  function ___cxa_uncaught_exception() {
+      return !!__ZSt18uncaught_exceptionv.uncaught_exception;
     }
 
+  
+  
   
   
   function ___cxa_free_exception(ptr) {
@@ -2015,20 +2020,7 @@ function copyTempDouble(ptr) {
         if (!ptr) return;
         var info = EXCEPTIONS.infos[ptr];
         info.refcount = 0;
-      }};function ___cxa_begin_catch(ptr) {
-      var info = EXCEPTIONS.infos[ptr];
-      if (info && !info.caught) {
-        info.caught = true;
-        __ZSt18uncaught_exceptionv.uncaught_exception--;
-      }
-      if (info) info.rethrown = false;
-      EXCEPTIONS.caught.push(ptr);
-      EXCEPTIONS.addRef(EXCEPTIONS.deAdjust(ptr));
-      return ptr;
-    }
-
-  
-  
+      }};
   function ___resumeException(ptr) {
       if (!EXCEPTIONS.last) { EXCEPTIONS.last = ptr; }
       throw ptr + " - Exception catching is disabled, this exception cannot be caught. Compile with -s DISABLE_EXCEPTION_CATCHING=0 or DISABLE_EXCEPTION_CATCHING=2 to catch.";
@@ -2067,30 +2059,7 @@ function copyTempDouble(ptr) {
       // typeinfo defined. Best-efforts match just in case.
       thrown = HEAP32[((thrown)>>2)]; // undo indirection
       return ((setTempRet0(throwntype),thrown)|0);
-    }function ___cxa_throw(ptr, type, destructor) {
-      EXCEPTIONS.infos[ptr] = {
-        ptr: ptr,
-        adjusted: [ptr],
-        type: type,
-        destructor: destructor,
-        refcount: 0,
-        caught: false,
-        rethrown: false
-      };
-      EXCEPTIONS.last = ptr;
-      if (!("uncaught_exception" in __ZSt18uncaught_exceptionv)) {
-        __ZSt18uncaught_exceptionv.uncaught_exception = 1;
-      } else {
-        __ZSt18uncaught_exceptionv.uncaught_exception++;
-      }
-      throw ptr + " - Exception catching is disabled, this exception cannot be caught. Compile with -s DISABLE_EXCEPTION_CATCHING=0 or DISABLE_EXCEPTION_CATCHING=2 to catch.";
-    }
-
-  function ___cxa_uncaught_exception() {
-      return !!__ZSt18uncaught_exceptionv.uncaught_exception;
-    }
-
-  function ___gxx_personality_v0() {
+    }function ___gxx_personality_v0() {
     }
 
   function ___lock() {}
@@ -5222,75 +5191,6 @@ function copyTempDouble(ptr) {
   }
   }
 
-  function ___syscall221(which, varargs) {SYSCALLS.varargs = varargs;
-  try {
-   // fcntl64
-      var stream = SYSCALLS.getStreamFromFD(), cmd = SYSCALLS.get();
-      switch (cmd) {
-        case 0: {
-          var arg = SYSCALLS.get();
-          if (arg < 0) {
-            return -22;
-          }
-          var newStream;
-          newStream = FS.open(stream.path, stream.flags, 0, arg);
-          return newStream.fd;
-        }
-        case 1:
-        case 2:
-          return 0;  // FD_CLOEXEC makes no sense for a single process.
-        case 3:
-          return stream.flags;
-        case 4: {
-          var arg = SYSCALLS.get();
-          stream.flags |= arg;
-          return 0;
-        }
-        case 12:
-        /* case 12: Currently in musl F_GETLK64 has same value as F_GETLK, so omitted to avoid duplicate case blocks. If that changes, uncomment this */ {
-          
-          var arg = SYSCALLS.get();
-          var offset = 0;
-          // We're always unlocked.
-          HEAP16[(((arg)+(offset))>>1)]=2;
-          return 0;
-        }
-        case 13:
-        case 14:
-        /* case 13: Currently in musl F_SETLK64 has same value as F_SETLK, so omitted to avoid duplicate case blocks. If that changes, uncomment this */
-        /* case 14: Currently in musl F_SETLKW64 has same value as F_SETLKW, so omitted to avoid duplicate case blocks. If that changes, uncomment this */
-          
-          
-          return 0; // Pretend that the locking is successful.
-        case 16:
-        case 8:
-          return -22; // These are for sockets. We don't have them fully implemented yet.
-        case 9:
-          // musl trusts getown return values, due to a bug where they must be, as they overlap with errors. just return -1 here, so fnctl() returns that, and we set errno ourselves.
-          ___setErrNo(22);
-          return -1;
-        default: {
-          return -22;
-        }
-      }
-    } catch (e) {
-    if (typeof FS === 'undefined' || !(e instanceof FS.ErrnoError)) abort(e);
-    return -e.errno;
-  }
-  }
-
-  function ___syscall5(which, varargs) {SYSCALLS.varargs = varargs;
-  try {
-   // open
-      var pathname = SYSCALLS.getStr(), flags = SYSCALLS.get(), mode = SYSCALLS.get() // optional TODO
-      var stream = FS.open(pathname, flags, mode);
-      return stream.fd;
-    } catch (e) {
-    if (typeof FS === 'undefined' || !(e instanceof FS.ErrnoError)) abort(e);
-    return -e.errno;
-  }
-  }
-
   function ___syscall54(which, varargs) {SYSCALLS.varargs = varargs;
   try {
    // ioctl
@@ -5892,11 +5792,8 @@ var asmLibraryArg = {
   "nullFunc_viiiii": nullFunc_viiiii,
   "nullFunc_viiiiii": nullFunc_viiiiii,
   "nullFunc_viijii": nullFunc_viijii,
-  "___cxa_allocate_exception": ___cxa_allocate_exception,
-  "___cxa_begin_catch": ___cxa_begin_catch,
   "___cxa_find_matching_catch": ___cxa_find_matching_catch,
   "___cxa_free_exception": ___cxa_free_exception,
-  "___cxa_throw": ___cxa_throw,
   "___cxa_uncaught_exception": ___cxa_uncaught_exception,
   "___gxx_personality_v0": ___gxx_personality_v0,
   "___lock": ___lock,
@@ -5906,8 +5803,6 @@ var asmLibraryArg = {
   "___syscall140": ___syscall140,
   "___syscall145": ___syscall145,
   "___syscall146": ___syscall146,
-  "___syscall221": ___syscall221,
-  "___syscall5": ___syscall5,
   "___syscall54": ___syscall54,
   "___syscall6": ___syscall6,
   "___syscall91": ___syscall91,
