@@ -1,11 +1,11 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "esnext",
     "target": "es5",
     "importHelpers": false,
     "sourceMap": true,
     "moduleResolution": "node",
-    "outDir": "build",
+    "outDir": "tmp/src",
     "rootDir": "src",
     "composite": true,
     "jsx": "react",
@@ -37,5 +37,27 @@
   ],
   "exclude": [
     "src/**/*.d.ts"
-  ]
+  ],
+  "typedocOptions": {
+    "name": "EMScripten Wrapper",
+    "mode": "modules",
+    "modules": "umd",
+    "target": "es6",
+    "hideGenerator": true,
+    "ignoreCompilerErrors": false,
+    "includeDeclarations": false,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "moduleResolution": "node",
+    "preserveConstEnums": true,
+    "stripInternal": true,
+    "suppressExcessPropertyErrors": true,
+    "suppressImplicitAnyIndexErrors": true,
+    "exclude": "**/*.(d.ts|js|spec.ts|scss)",
+    "excludePrivate": true,
+    "excludeProtected": true,
+    "excludeExternals": true,
+    "excludeNotExported": true,
+    "listInvalidSymbolLinks": true
+  }
 }
