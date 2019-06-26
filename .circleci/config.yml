@@ -19,7 +19,7 @@ jobs:
           name: dist
           command: npm run dist
       - store_artifacts:
-          path: dist
+          path: build
 
 workflows:
   version: 2
