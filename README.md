@@ -1,6 +1,6 @@
 Emscripten Wrapper
 ============
-[![License: MIT][mit-image]][mit-url] [![NPM version][npm-image]][npm-url]  [![CircleCI][ci-image]][ci-url] 
+[![License: MIT][mit-image]][mit-url] [![NPM version][npm-image]][npm-url]  [![Github Actions][github-actions-image]][github-actions-url]
 
 This is a helper repository to wrap an [Emscripten](http://emscripten.org/) generated module such that it is easier useable. 
  
@@ -117,5 +117,6 @@ important methods
 [npm-url]: https://npmjs.org/package/emscripten_wrapper
 [mit-image]: https://img.shields.io/badge/License-MIT-yellow.svg
 [mit-url]: https://opensource.org/licenses/MIT
-[ci-image]: https://circleci.com/gh/sgratzl/emscripten_wrapper.svg?style=shield
-[ci-url]: https://circleci.com/gh/sgratzl/emscripten_wrapper
+[github-actions-image]: https://github.com/sgratzl/emscripten_wrapper/workflows/nodeci/badge.svg
+[github-actions-url]: https://github.com/sgratzl/emscripten_wrapper/actions
+
