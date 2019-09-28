@@ -12,6 +12,6 @@
   },
   "github": {
     "release": true,
-    "assets": ["dist/*.zip"]
+    "assets": ["*.tgz"]
   }
 }

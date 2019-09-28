@@ -14,3 +14,4 @@ node_modules/
 /demo/debug
 .rpt2_cache
 /tmp/
+*.tgz
