@@ -258,7 +258,7 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
   }
 
   private writeTextFile(mod: ISyncEMWWrapper<FN>, msg: IWriteTextFileRequestMessage, reply: IReplyer) {
-    mod.fileSystem.writeFile(msg.path, msg.content, {encoding: 'utf8', flags: 'w'});
+    mod.fileSystem.writeFile(msg.path, msg.content, {flags: 'w'});
     reply(this.ok(msg));
   }
 
@@ -283,7 +283,7 @@ export class ModuleWorker<FN = {}, T extends IAsyncEMWWrapper<FN> = IAsyncEMWWra
   }
 
   private readBinaryFile(mod: ISyncEMWWrapper<FN>, msg: IReadBinaryFileRequestMessage, reply: IReplyer) {
-    const content = mod.fileSystem.readFile(msg.path);
+    const content = <Uint8Array>mod.fileSystem.readFile(msg.path, {encoding: 'binary'});
     reply({
       key: msg.key,
       type: 'readBinaryFile',

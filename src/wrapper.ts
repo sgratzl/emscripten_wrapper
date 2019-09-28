@@ -237,13 +237,13 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
         return <true>true;
       }),
       readBinaryFile: (path) => this.fileSystem.then((fs) => {
-        return fs.readFile(path);
+        return <Uint8Array>fs.readFile(path);
       }),
       readTextFile: (path) => this.fileSystem.then((fs) => {
-        return fs.readFile(path, {encoding: 'utf8', flags: 'r'});
+        return <string>fs.readFile(path, {encoding: 'utf8', flags: 'r'});
       }),
       writeTextFile: (path, content) => this.fileSystem.then((fs) => {
-        fs.writeFile(path, content, {encoding: 'utf8', flags: 'w'});
+        fs.writeFile(path, content, {flags: 'w'});
         return <true>true;
       }),
       writeBinaryFile: (path, content) => this.fileSystem.then((fs) => {
@@ -479,7 +479,7 @@ class EMScriptWrapper<T> extends EventEmitter implements IAsyncEMWMainWrapper<T>
           return Promise.resolve(mod.FS.readFile(path, {encoding: 'utf8', flags: 'r'}));
         },
         writeTextFile: (path, content) => {
-          mod.FS.writeFile(path, content, {encoding: 'utf8', flags: 'w'});
+          mod.FS.writeFile(path, content, {flags: 'w'});
           return Promise.resolve(<true>true);
         },
         writeBinaryFile: (path, content) => {
