@@ -17,7 +17,7 @@
   },
   "homepage": "https://github.com/sgratzl/emscripten_wrapper#readme",
   "main": "build/index.js",
-  "module": "build/index.mjs",
+  "module": "build/index.esm.js",
   "unpkg": "build/index.umd.js",
   "types": "build/index.d.ts",
   "sideEffects": false,
@@ -49,24 +49,24 @@
     "release:pre": "release-it --preRelease=alpha --npm.tag=next"
   },
   "devDependencies": {
-    "@types/jest": "^24.0.17",
-    "jest": "^24.8.0",
+    "@types/jest": "^24.0.18",
+    "jest": "^24.9.0",
     "mkdirp": "^0.5.1",
-    "release-it": "^12.3.5",
-    "rimraf": "^2.6.3",
-    "rollup": "^1.19.3",
+    "release-it": "^12.4.1",
+    "rimraf": "^3.0.0",
+    "rollup": "^1.21.4",
     "rollup-plugin-node-builtins": "^2.1.2",
     "rollup-plugin-node-resolve": "^5.2.0",
-    "rollup-plugin-typescript2": "^0.22.1",
-    "ts-jest": "^24.0.2",
-    "tslint": "^5.18.0",
-    "tslint-consistent-codestyle": "^1.15.1",
+    "rollup-plugin-typescript2": "^0.24.3",
+    "ts-jest": "^24.1.0",
+    "tslint": "^5.20.0",
+    "tslint-consistent-codestyle": "^1.16.0",
     "tslint-eslint-rules": "^5.4.0",
     "typedoc": "^0.15.0",
-    "typescript": "^3.5.3"
+    "typescript": "^3.6.3"
   },
   "dependencies": {
-    "@types/emscripten": "^0.0.34",
+    "@types/emscripten": "^1.38.0",
     "@types/node": "*"
   }
 }

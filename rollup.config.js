@@ -13,7 +13,7 @@ export default [{
       format: 'cjs'
     },
     {
-      file: 'build/index.mjs',
+      file: 'build/index.esm.js',
       exports: 'named',
       sourcemap: true,
       format: 'esm'
