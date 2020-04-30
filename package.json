@@ -49,24 +49,24 @@
     "release:pre": "release-it --preRelease=alpha --npm.tag=next"
   },
   "devDependencies": {
-    "@types/jest": "^24.0.18",
-    "jest": "^24.9.0",
-    "mkdirp": "^0.5.1",
-    "release-it": "^12.4.1",
-    "rimraf": "^3.0.0",
-    "rollup": "^1.21.4",
+    "@types/jest": "^25.2.1",
+    "jest": "^25.5.2",
+    "mkdirp": "^1.0.4",
+    "release-it": "^13.5.7",
+    "rimraf": "^3.0.2",
+    "rollup": "^2.7.5",
     "rollup-plugin-node-builtins": "^2.1.2",
     "rollup-plugin-node-resolve": "^5.2.0",
-    "rollup-plugin-typescript2": "^0.24.3",
-    "ts-jest": "^24.1.0",
-    "tslint": "^5.20.0",
+    "rollup-plugin-typescript2": "^0.27.0",
+    "ts-jest": "^25.4.0",
+    "tslint": "^6.1.2",
     "tslint-consistent-codestyle": "^1.16.0",
     "tslint-eslint-rules": "^5.4.0",
-    "typedoc": "^0.15.0",
-    "typescript": "^3.6.3"
+    "typedoc": "^0.17.6",
+    "typescript": "^3.8.3"
   },
   "dependencies": {
-    "@types/emscripten": "^1.38.0",
+    "@types/emscripten": "^1.39.3",
     "@types/node": "*"
   }
 }
